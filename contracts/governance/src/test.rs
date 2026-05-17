@@ -14,7 +14,7 @@ use cosmosvote_token::{TokenContract, TokenContractClient};
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn setup(env: &Env) -> (GovernanceContractClient, TokenContractClient, Address, Address, Address) {
+fn setup(env: &Env) -> (GovernanceContractClient<'_>, TokenContractClient<'_>, Address, Address, Address) {
     env.mock_all_auths();
     let admin = Address::generate(env);
     let voter = Address::generate(env);

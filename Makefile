@@ -9,23 +9,23 @@ build:
 
 ## Run all unit and property-based tests
 test:
-	cargo test
+	cargo test --all --features testutils
 
 ## Run tests with output
 test-verbose:
-	cargo test -- --nocapture
+	cargo test --all --features testutils -- --nocapture
 
 ## Run tests for governance contract only
 test-governance:
-	cargo test -p cosmosvote-governance
+	cargo test -p cosmosvote-governance --features testutils
 
 ## Run tests for token contract only
 test-token:
-	cargo test -p cosmosvote-token
+	cargo test -p cosmosvote-token --features testutils
 
 ## Run property-based tests only
 test-prop:
-	cargo test prop_
+	cargo test prop_ --all --features testutils
 
 ## Format code
 fmt:
@@ -53,7 +53,7 @@ clean:
 
 ## Run coverage (requires cargo-tarpaulin)
 coverage:
-	cargo tarpaulin --out Html --output-dir coverage/
+	cargo tarpaulin --out Html --output-dir coverage/ --features testutils
 
 ## Build with debug logs enabled
 build-debug:
