@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/app/target
+    environment:
+      - STELLAR_RPC_URL=http://stellar-node:8000
+      - STELLAR_NETWORK_PASSPHRASE=Standalone Network ; February 2021
+    depends_on:
+      - stellar-node
+    command: bash
+
+  stellar-node:
+    image: stellar/quickstart:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - NETWORK=local
+    command: --local --enable-soroban-rpc
+
+volumes:
+  cargo-cache:
+  target-cache:

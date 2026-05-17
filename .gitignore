@@ -1,0 +1,25 @@
+# Rust / Cargo
+target/
+# Note: Cargo.lock is intentionally committed for reproducible builds
+
+# Environment
+.env
+.env.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# Coverage
+coverage/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
