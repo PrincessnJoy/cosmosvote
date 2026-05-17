@@ -34,5 +34,5 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 - React + Vite frontend proposal browser
 - Full documentation: README, ADRs, security docs, examples
 
-[Unreleased]: https://github.com/your-org/cosmosvote/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/your-org/cosmosvote/releases/tag/v1.0.0
+[Unreleased]: https://github.com/PrincessnJoy/cosmosvote/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/PrincessnJoy/cosmosvote/releases/tag/v1.0.0

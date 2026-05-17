@@ -1,7 +1,7 @@
 # CosmosVote Contracts
 
-[![CI](https://github.com/your-org/cosmosvote/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/cosmosvote/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/your-org/cosmosvote/actions/workflows/codeql.yml/badge.svg)](https://github.com/your-org/cosmosvote/actions/workflows/codeql.yml)
+[![CI](https://github.com/PrincessnJoy/cosmosvote/actions/workflows/ci.yml/badge.svg)](https://github.com/PrincessnJoy/cosmosvote/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/PrincessnJoy/cosmosvote/actions/workflows/codeql.yml/badge.svg)](https://github.com/PrincessnJoy/cosmosvote/actions/workflows/codeql.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 
@@ -111,7 +111,7 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/cosmosvote.git
+git clone https://github.com/PrincessnJoy/cosmosvote.git
 cd cosmosvote
 
 # Add WASM target
