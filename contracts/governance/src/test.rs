@@ -33,6 +33,20 @@ fn setup(env: &Env) -> (GovernanceContractClient<'_>, TokenContractClient<'_>, A
     (gov, token, admin, voter, voter2)
 }
 
+#[test]
+fn test_get_config() {
+    let env = Env::default();
+    let (gov, token, admin, _, _) = setup(&env);
+    
+    let config = gov.get_config();
+    assert_eq!(config.admin, admin);
+    assert_eq!(config.voting_token, token.address);
+    assert_eq!(config.min_proposal_balance, 0i128);
+    assert_eq!(config.proposal_cooldown, 0u64);
+    assert_eq!(config.restrict_admin_vote, false);
+    assert_eq!(config.paused, false);
+}
+
 fn make_proposal(gov: &GovernanceContractClient, env: &Env, proposer: &Address) -> u64 {
     gov.create_proposal(
         proposer,
