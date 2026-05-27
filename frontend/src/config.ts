@@ -18,3 +18,19 @@ export const NETWORKS: Record<string, NetworkConfig> = {
 
 export const ACTIVE_NETWORK = (import.meta.env.VITE_NETWORK as string) ?? 'testnet';
 export const config = NETWORKS[ACTIVE_NETWORK] ?? NETWORKS.testnet;
+
+export function validateConfig() {
+  const errors: string[] = [];
+  
+  if (!config.governanceContractId || !config.governanceContractId.startsWith('C') || config.governanceContractId.length !== 56) {
+    errors.push('VITE_GOVERNANCE_CONTRACT_ID must be a valid Stellar contract ID (starts with C, 56 characters).');
+  }
+  
+  if (!config.tokenContractId || !config.tokenContractId.startsWith('C') || config.tokenContractId.length !== 56) {
+    errors.push('VITE_TOKEN_CONTRACT_ID must be a valid Stellar contract ID (starts with C, 56 characters).');
+  }
+
+  if (errors.length > 0) {
+    throw new Error('Configuration Error:\n' + errors.join('\n'));
+  }
+}
