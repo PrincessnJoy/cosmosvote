@@ -30,19 +30,39 @@ export function ProposalCard({ proposal: p, onClick }: Props) {
   const color = STATE_COLORS[p.state];
   const pct = quorumPct(p);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
+
   return (
     <article
       onClick={onClick}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+      role="button"
+      aria-label={`Proposal #${p.id}: ${p.title}`}
       style={{
         border: `1px solid ${color}`,
         borderRadius: 8,
         padding: '1rem',
         cursor: 'pointer',
         background: '#fff',
-        transition: 'box-shadow 0.15s',
+        transition: 'box-shadow 0.15s, border-color 0.15s',
+        outline: 'none',
       }}
       onMouseEnter={e => (e.currentTarget.style.boxShadow = `0 4px 12px ${color}44`)}
       onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+      onFocus={e => {
+        e.currentTarget.style.boxShadow = `0 0 0 3px ${color}44`;
+        e.currentTarget.style.borderColor = color;
+      }}
+      onBlur={e => {
+        e.currentTarget.style.boxShadow = 'none';
+        e.currentTarget.style.borderColor = color;
+      }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <h3 style={{ margin: 0, fontSize: '1rem' }}>#{String(p.id)} — {p.title}</h3>
