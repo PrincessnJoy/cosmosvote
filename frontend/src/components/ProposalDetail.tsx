@@ -1,10 +1,10 @@
 import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useState } from 'react';
+import { useWallet } from '../WalletContext';
 
 interface Props {
   proposal: Proposal;
-  walletAddress: string | null;
   onClose: () => void;
 }
 
@@ -12,7 +12,8 @@ function formatDate(ts: bigint): string {
   return new Date(Number(ts) * 1000).toLocaleString();
 }
 
-export function ProposalDetail({ proposal: p, walletAddress, onClose }: Props) {
+export function ProposalDetail({ proposal: p, onClose }: Props) {
+  const { walletAddress } = useWallet();
   const [hasVoted, setHasVoted] = useState<boolean | null>(null);
   const [voteRecord, setVoteRecord] = useState<{ vote: string; weight: bigint } | null>(null);
 

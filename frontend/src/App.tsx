@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenBalance } from './api';
+import { fetchAllProposals } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalDetail } from './components/ProposalDetail';
 import { ACTIVE_NETWORK } from './config';
+import { useWallet } from './WalletContext';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
@@ -14,8 +15,8 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
+  
+  const { walletAddress, tokenBalance, connect, disconnect } = useWallet();
 
   useEffect(() => {
     fetchAllProposals()
@@ -23,11 +24,6 @@ export default function App() {
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    if (!walletAddress) return;
-    fetchTokenBalance(walletAddress).then(setTokenBalance).catch(() => setTokenBalance(null));
-  }, [walletAddress]);
 
   const filtered = useMemo(() => {
     return proposals.filter(p => {
@@ -48,18 +44,18 @@ export default function App() {
         </div>
         <div style={{ textAlign: 'right' }}>
           {walletAddress ? (
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
-              {tokenBalance !== null && (
-                <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{String(tokenBalance)} CVT</div>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
+                {tokenBalance !== null && (
+                  <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{String(tokenBalance)} CVT</div>
+                )}
+              </div>
+              <button onClick={disconnect} style={{ background: 'transparent', color: '#ef4444', border: '1px solid #ef4444', borderRadius: 4, padding: '0.25rem 0.5rem', cursor: 'pointer', fontSize: '0.75rem' }}>Disconnect</button>
             </div>
           ) : (
             <button
-              onClick={() => {
-                const addr = prompt('Enter your Stellar address (G...):');
-                if (addr?.startsWith('G')) setWalletAddress(addr);
-              }}
+              onClick={connect}
               style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
             >
               Connect Wallet
@@ -121,7 +117,6 @@ export default function App() {
       {selected && (
         <ProposalDetail
           proposal={selected}
-          walletAddress={walletAddress}
           onClose={() => setSelected(null)}
         />
       )}
