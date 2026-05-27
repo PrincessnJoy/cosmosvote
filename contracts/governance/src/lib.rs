@@ -21,7 +21,7 @@ use soroban_sdk::{contract, contractimpl, Address, Env, String};
 
 use events::GovernanceEvents;
 use storage::GovernanceStorage;
-use types::{ContractError, ContractState, Proposal, ProposalState, Vote, VoteRecord};
+use types::{ContractError, ContractState, GovernanceConfig, Proposal, ProposalState, Vote, VoteRecord};
 
 // ---------------------------------------------------------------------------
 // Token interface (cross-contract call)
@@ -83,6 +83,18 @@ impl GovernanceContract {
 
         GovernanceEvents::initialized(&env, &admin, &voting_token);
         Ok(())
+    }
+
+    /// Retrieve the current governance configuration.
+    pub fn get_config(env: Env) -> GovernanceConfig {
+        GovernanceConfig {
+            admin: GovernanceStorage::admin(&env),
+            voting_token: GovernanceStorage::voting_token(&env),
+            min_proposal_balance: GovernanceStorage::min_proposal_balance(&env),
+            proposal_cooldown: GovernanceStorage::proposal_cooldown(&env),
+            restrict_admin_vote: GovernanceStorage::restrict_admin_vote(&env),
+            paused: GovernanceStorage::paused(&env),
+        }
     }
 
     // -----------------------------------------------------------------------
