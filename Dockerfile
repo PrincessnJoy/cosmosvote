@@ -17,12 +17,12 @@ RUN curl -sSL https://github.com/stellar/stellar-cli/releases/download/v22.0.1/s
     | tar -xz -C /usr/local/bin
 
 # Install cargo tools
-RUN cargo install cargo-tarpaulin --locked
+# RUN cargo install cargo-tarpaulin --locked
 
 WORKDIR /app
 
 # Cache dependencies
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 COPY contracts/governance/Cargo.toml contracts/governance/Cargo.toml
 COPY contracts/token/Cargo.toml contracts/token/Cargo.toml
 
