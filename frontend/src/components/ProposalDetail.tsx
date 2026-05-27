@@ -1,9 +1,11 @@
 import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useState } from 'react';
+import { formatTokenAmount } from '../utils';
 
 interface Props {
   proposal: Proposal;
+  decimals: number;
   walletAddress: string | null;
   onClose: () => void;
 }
@@ -12,7 +14,7 @@ function formatDate(ts: bigint): string {
   return new Date(Number(ts) * 1000).toLocaleString();
 }
 
-export function ProposalDetail({ proposal: p, walletAddress, onClose }: Props) {
+export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }: Props) {
   const [hasVoted, setHasVoted] = useState<boolean | null>(null);
   const [voteRecord, setVoteRecord] = useState<{ vote: string; weight: bigint } | null>(null);
 
@@ -50,8 +52,8 @@ export function ProposalDetail({ proposal: p, walletAddress, onClose }: Props) {
               ['Proposer', `${p.proposer.slice(0, 8)}...${p.proposer.slice(-4)}`],
               ['Start', formatDate(p.start_time)],
               ['End', formatDate(p.end_time)],
-              ['Quorum', String(p.quorum)],
-              ['Total Votes', String(total)],
+              ['Quorum', formatTokenAmount(p.quorum, decimals)],
+              ['Total Votes', formatTokenAmount(total, decimals)],
             ].map(([k, v]) => (
               <tr key={k} style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={{ padding: '0.4rem 0', color: '#888', width: '40%' }}>{k}</td>
@@ -69,7 +71,7 @@ export function ProposalDetail({ proposal: p, walletAddress, onClose }: Props) {
           ].map(({ label, value, color }) => (
             <div key={label} style={{ textAlign: 'center', padding: '0.75rem', background: '#f9fafb', borderRadius: 8 }}>
               <div style={{ fontSize: '0.75rem', color: '#888' }}>{label}</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color }}>{String(value)}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 700, color }}>{formatTokenAmount(value, decimals).replace(' CVT', '')}</div>
             </div>
           ))}
         </div>
@@ -78,7 +80,7 @@ export function ProposalDetail({ proposal: p, walletAddress, onClose }: Props) {
           <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem' }}>
             {hasVoted === null ? 'Checking vote status...' :
               hasVoted && voteRecord
-                ? `You voted ${voteRecord.vote} with weight ${String(voteRecord.weight)}`
+                ? `You voted ${voteRecord.vote} with weight ${formatTokenAmount(voteRecord.weight, decimals)}`
                 : 'You have not voted on this proposal'}
           </div>
         )}
