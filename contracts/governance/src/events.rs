@@ -56,10 +56,10 @@ impl GovernanceEvents {
         );
     }
 
-    pub fn quorum_updated(env: &Env, proposal_id: u64, new_quorum: i128) {
+    pub fn quorum_updated(env: &Env, proposal_id: u64, old_quorum: i128, new_quorum: i128) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("quorum")),
-            (proposal_id, new_quorum),
+            (proposal_id, old_quorum, new_quorum),
         );
     }
 

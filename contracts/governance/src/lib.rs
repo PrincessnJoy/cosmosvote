@@ -426,9 +426,19 @@ impl GovernanceContract {
             return Err(ContractError::ProposalNotActive);
         }
 
+        let total_votes = proposal.votes_yes
+            .checked_add(proposal.votes_no)
+            .and_then(|v| v.checked_add(proposal.votes_abstain))
+            .ok_or(ContractError::ArithmeticOverflow)?;
+
+        if total_votes > 0 {
+            return Err(ContractError::QuorumUpdateNotAllowed);
+        }
+
+        let old_quorum = proposal.quorum;
         proposal.quorum = new_quorum;
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
-        GovernanceEvents::quorum_updated(&env, proposal_id, new_quorum);
+        GovernanceEvents::quorum_updated(&env, proposal_id, old_quorum, new_quorum);
         Ok(())
     }
 

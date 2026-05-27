@@ -410,6 +410,20 @@ fn test_update_quorum() {
     assert_eq!(proposal.quorum, 1_000_000);
 }
 
+#[test]
+fn test_update_quorum_with_votes_fails() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    
+    // Cast a vote
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    
+    // Attempt to update quorum
+    let result = gov.try_update_quorum(&admin, &id, &1_000_000i128);
+    assert_eq!(result, Err(Ok(ContractError::QuorumUpdateNotAllowed)));
+}
+
 // ---------------------------------------------------------------------------
 // Proposal not found
 // ---------------------------------------------------------------------------
