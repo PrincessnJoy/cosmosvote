@@ -30,11 +30,6 @@ export default function App() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (!walletAddress) return;
-    fetchTokenBalance(walletAddress).then(setTokenBalance).catch(() => setTokenBalance(null));
-  }, [walletAddress]);
-
   const filtered = useMemo(() => {
     return proposals.filter(p => {
       const matchState = stateFilter === 'All' || p.state === stateFilter;
@@ -62,10 +57,7 @@ export default function App() {
             </div>
           ) : (
             <button
-              onClick={() => {
-                const addr = prompt('Enter your Stellar address (G...):');
-                if (addr?.startsWith('G')) setWalletAddress(addr);
-              }}
+              onClick={connect}
               style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
             >
               Connect Wallet
