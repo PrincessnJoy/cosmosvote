@@ -28,7 +28,7 @@ fn setup(env: &Env) -> (GovernanceContractClient<'_>, TokenContractClient<'_>, A
 
     let gov_id = env.register(GovernanceContract, ());
     let gov = GovernanceContractClient::new(env, &gov_id);
-    gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+    gov.initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
 
     (gov, token, admin, voter, voter2)
 }
@@ -58,7 +58,7 @@ fn test_initialize_success() {
 
     let gov_id = env.register(GovernanceContract, ());
     let gov = GovernanceContractClient::new(&env, &gov_id);
-    gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+    gov.initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
 
     assert_eq!(gov.admin(), admin);
     assert_eq!(gov.proposal_count(), 0);
@@ -69,7 +69,7 @@ fn test_initialize_double_init_fails() {
     let env = Env::default();
     let (gov, _, admin, _, _) = setup(&env);
     let token_id = env.register(TokenContract, ());
-    let result = gov.try_initialize(&admin, &token_id, &0i128, &0u64, &false);
+    let result = gov.try_initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
     assert_eq!(result, Err(Ok(ContractError::AlreadyInitialized)));
 }
 
@@ -150,6 +150,34 @@ fn test_create_proposal_quorum_exceeds_supply_fails() {
         &3600u64,
     );
     assert_eq!(result, Err(Ok(ContractError::QuorumExceedsSupply)));
+}
+
+#[test]
+fn test_create_proposal_below_quorum_floor_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let voter = Address::generate(&env);
+
+    let token_id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &token_id);
+    token.initialize(&admin, &1_000_000i128); // 1M supply
+    token.mint(&admin, &voter, &1_000_000i128);
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    // 10% quorum floor (1000 bps)
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &1000u32, &false);
+
+    // 10% of 1M is 100k. 50k should fail.
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, "desc"),
+        &50_000i128,
+        &3600u64,
+    );
+    assert_eq!(result, Err(Ok(ContractError::QuorumBelowFloor)));
 }
 
 // ---------------------------------------------------------------------------

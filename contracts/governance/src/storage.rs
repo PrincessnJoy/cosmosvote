@@ -19,6 +19,7 @@ pub enum InstanceKey {
     ProposalCount,
     MinProposalBalance,
     ProposalCooldown,
+    MinQuorumBps,
     RestrictAdminVote,
     Version,
     ContractState,
@@ -76,6 +77,13 @@ impl GovernanceStorage {
     }
     pub fn set_proposal_cooldown(env: &Env, v: u64) {
         env.storage().instance().set(&InstanceKey::ProposalCooldown, &v);
+    }
+
+    pub fn min_quorum_bps(env: &Env) -> u32 {
+        env.storage().instance().get(&InstanceKey::MinQuorumBps).unwrap_or(0)
+    }
+    pub fn set_min_quorum_bps(env: &Env, v: u32) {
+        env.storage().instance().set(&InstanceKey::MinQuorumBps, &v);
     }
 
     pub fn restrict_admin_vote(env: &Env) -> bool {
