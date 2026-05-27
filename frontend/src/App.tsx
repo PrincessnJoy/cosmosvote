@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import type { Proposal, ProposalState } from './types';
 import { fetchAllProposals, fetchTokenBalance } from './api';
 import { ProposalCard } from './components/ProposalCard';
+import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
 import { ACTIVE_NETWORK } from './config';
 
@@ -106,13 +107,20 @@ export default function App() {
         </div>
 
         {/* Content */}
-        {loading && <p style={{ textAlign: 'center', color: '#888' }}>Loading proposals...</p>}
-        {error && <p style={{ textAlign: 'center', color: '#dc2626' }}>Error: {error}</p>}
-        {!loading && !error && filtered.length === 0 && (
-          <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
-        )}
+        {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
+        
         <div style={{ display: 'grid', gap: '1rem' }}>
-          {filtered.map(p => (
+          {loading && (
+            <>
+              <ProposalSkeleton />
+              <ProposalSkeleton />
+              <ProposalSkeleton />
+            </>
+          )}
+          {!loading && !error && filtered.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
+          )}
+          {!loading && filtered.map(p => (
             <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
           ))}
         </div>
