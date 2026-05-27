@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import type { NetworkConfig } from './types';
 
 export const NETWORKS: Record<string, NetworkConfig> = {
