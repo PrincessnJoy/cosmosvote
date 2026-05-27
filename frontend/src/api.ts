@@ -3,7 +3,6 @@ import {
   TransactionBuilder,
   Account,
   Operation,
-  Contract,
   xdr,
   scValToNative,
   nativeToScVal,
@@ -100,4 +99,12 @@ export async function fetchTokenBalance(address: string): Promise<bigint> {
     nativeToScVal(address, { type: 'address' })
   );
   return BigInt(String(result));
+}
+
+export async function fetchTokenDecimals(): Promise<number> {
+  const result = await simulateCall(
+    config.tokenContractId,
+    'decimals'
+  );
+  return Number(result);
 }

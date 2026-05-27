@@ -16,12 +16,14 @@ mod test;
 mod test_helpers;
 #[cfg(test)]
 mod prop_tests;
+#[cfg(test)]
+mod benchmarks;
 
-use soroban_sdk::{contract, contractimpl, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 use events::GovernanceEvents;
 use storage::GovernanceStorage;
-use types::{ContractError, ContractState, Proposal, ProposalState, Vote, VoteRecord};
+use types::{ContractError, ContractState, GovernanceConfig, Proposal, ProposalState, Vote, VoteRecord};
 
 // ---------------------------------------------------------------------------
 // Token interface (cross-contract call)
@@ -86,6 +88,18 @@ impl GovernanceContract {
 
         GovernanceEvents::initialized(&env, &admin, &voting_token);
         Ok(())
+    }
+
+    /// Retrieve the current governance configuration.
+    pub fn get_config(env: Env) -> GovernanceConfig {
+        GovernanceConfig {
+            admin: GovernanceStorage::admin(&env),
+            voting_token: GovernanceStorage::voting_token(&env),
+            min_proposal_balance: GovernanceStorage::min_proposal_balance(&env),
+            proposal_cooldown: GovernanceStorage::proposal_cooldown(&env),
+            restrict_admin_vote: GovernanceStorage::restrict_admin_vote(&env),
+            paused: GovernanceStorage::paused(&env),
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -194,6 +208,44 @@ impl GovernanceContract {
     /// Total number of proposals created.
     pub fn proposal_count(env: Env) -> u64 {
         GovernanceStorage::proposal_count(&env)
+    }
+
+    /// Paginated list of proposals.
+    pub fn get_proposals(env: Env, from_id: u64, limit: u32) -> Vec<Proposal> {
+        let count = GovernanceStorage::proposal_count(&env);
+        let limit = if limit > 20 { 20 } else { limit };
+        let mut proposals = Vec::new(&env);
+
+        let end = (from_id + limit as u64).min(count);
+        for id in from_id..end {
+            if let Some(proposal) = GovernanceStorage::proposal(&env, id) {
+                proposals.push_back(proposal);
+            }
+        }
+        proposals
+    }
+
+    /// Paginated list of proposals filtered by state.
+    pub fn get_proposals_by_state(
+        env: Env,
+        state: ProposalState,
+        from_id: u64,
+        limit: u32,
+    ) -> Vec<Proposal> {
+        let count = GovernanceStorage::proposal_count(&env);
+        let limit = if limit > 20 { 20 } else { limit };
+        let mut proposals = Vec::new(&env);
+
+        let mut current_id = from_id;
+        while proposals.len() < limit && current_id < count {
+            if let Some(proposal) = GovernanceStorage::proposal(&env, current_id) {
+                if proposal.state == state {
+                    proposals.push_back(proposal);
+                }
+            }
+            current_id += 1;
+        }
+        proposals
     }
 
     // -----------------------------------------------------------------------
