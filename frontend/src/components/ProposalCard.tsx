@@ -1,4 +1,5 @@
 import type { Proposal, ProposalState } from '../types';
+import { formatTokenAmount } from '../utils';
 
 const STATE_COLORS: Record<ProposalState, string> = {
   Active: '#2563eb',
@@ -10,6 +11,7 @@ const STATE_COLORS: Record<ProposalState, string> = {
 
 interface Props {
   proposal: Proposal;
+  decimals: number;
   onClick: () => void;
 }
 
@@ -26,7 +28,7 @@ function quorumPct(p: Proposal): number {
   return Math.min(100, Number((totalVotes(p) * 100n) / p.quorum));
 }
 
-export function ProposalCard({ proposal: p, onClick }: Props) {
+export function ProposalCard({ proposal: p, decimals, onClick }: Props) {
   const color = STATE_COLORS[p.state];
   const pct = quorumPct(p);
 
@@ -56,7 +58,7 @@ export function ProposalCard({ proposal: p, onClick }: Props) {
       </p>
 
       <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '0.5rem' }}>
-        Ends {formatDate(p.end_time)} · Quorum {String(p.quorum).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+        Ends {formatDate(p.end_time)} · Quorum {formatTokenAmount(p.quorum, decimals)}
       </div>
 
       {/* Quorum progress bar */}
@@ -64,7 +66,7 @@ export function ProposalCard({ proposal: p, onClick }: Props) {
         <div style={{ background: color, width: `${pct}%`, height: '100%', borderRadius: 4, transition: 'width 0.3s' }} />
       </div>
       <div style={{ fontSize: '0.7rem', color: '#888', marginTop: 2 }}>
-        {pct}% of quorum · ✅ {String(p.votes_yes)} · ❌ {String(p.votes_no)} · ⬜ {String(p.votes_abstain)}
+        {pct}% of quorum · ✅ {formatTokenAmount(p.votes_yes, decimals)} · ❌ {formatTokenAmount(p.votes_no, decimals)} · ⬜ {formatTokenAmount(p.votes_abstain, decimals)}
       </div>
     </article>
   );

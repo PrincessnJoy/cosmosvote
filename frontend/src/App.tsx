@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenBalance } from './api';
+import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalDetail } from './components/ProposalDetail';
 import { ACTIVE_NETWORK } from './config';
+import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
@@ -16,10 +17,14 @@ export default function App() {
   const [selected, setSelected] = useState<Proposal | null>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
+  const [decimals, setDecimals] = useState<number>(0);
 
   useEffect(() => {
-    fetchAllProposals()
-      .then(setProposals)
+    Promise.all([fetchAllProposals(), fetchTokenDecimals()])
+      .then(([props, decs]) => {
+        setProposals(props);
+        setDecimals(decs);
+      })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, []);
@@ -51,7 +56,7 @@ export default function App() {
             <div>
               <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
               {tokenBalance !== null && (
-                <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{String(tokenBalance)} CVT</div>
+                <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
               )}
             </div>
           ) : (
@@ -113,7 +118,7 @@ export default function App() {
         )}
         <div style={{ display: 'grid', gap: '1rem' }}>
           {filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>
@@ -121,6 +126,7 @@ export default function App() {
       {selected && (
         <ProposalDetail
           proposal={selected}
+          decimals={decimals}
           walletAddress={walletAddress}
           onClose={() => setSelected(null)}
         />
