@@ -404,3 +404,66 @@ fn test_version() {
     let (gov, _, _, _, _) = setup(&env);
     assert_eq!(gov.version(), (1u32, 0u32, 0u32));
 }
+
+// ---------------------------------------------------------------------------
+// Pagination & Filtering
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_get_proposals_pagination() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    
+    // Create 5 proposals
+    for _ in 0..5 {
+        make_proposal(&gov, &env, &voter);
+    }
+    
+    let page1 = gov.get_proposals(&0, &2);
+    assert_eq!(page1.len(), 2);
+    assert_eq!(page1.get(0).unwrap().id, 0);
+    assert_eq!(page1.get(1).unwrap().id, 1);
+    
+    let page2 = gov.get_proposals(&2, &2);
+    assert_eq!(page2.len(), 2);
+    assert_eq!(page2.get(0).unwrap().id, 2);
+    assert_eq!(page2.get(1).unwrap().id, 3);
+    
+    let page3 = gov.get_proposals(&4, &2);
+    assert_eq!(page3.len(), 1);
+    assert_eq!(page3.get(0).unwrap().id, 4);
+}
+
+#[test]
+fn test_get_proposals_limit_cap() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    
+    for _ in 0..25 {
+        make_proposal(&gov, &env, &voter);
+    }
+    
+    let large_page = gov.get_proposals(&0, &50);
+    assert_eq!(large_page.len(), 20); // Capped at 20
+}
+
+#[test]
+fn test_get_proposals_by_state() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    
+    let id0 = make_proposal(&gov, &env, &voter);
+    let id1 = make_proposal(&gov, &env, &voter);
+    let id2 = make_proposal(&gov, &env, &voter);
+    
+    gov.cancel(&admin, &id1);
+    
+    let active = gov.get_proposals_by_state(&ProposalState::Active, &0, &10);
+    assert_eq!(active.len(), 2);
+    assert_eq!(active.get(0).unwrap().id, 0);
+    assert_eq!(active.get(1).unwrap().id, 2);
+    
+    let cancelled = gov.get_proposals_by_state(&ProposalState::Cancelled, &0, &10);
+    assert_eq!(cancelled.len(), 1);
+    assert_eq!(cancelled.get(0).unwrap().id, 1);
+}
