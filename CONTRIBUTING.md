@@ -53,6 +53,26 @@ Open a GitHub Discussion or Issue tagged `enhancement`. Describe the use case an
 - [ ] Documentation updated if public API changed
 - [ ] CHANGELOG.md updated under `[Unreleased]`
 
+## Branch Protection Rules
+
+The `main` branch is protected. Direct pushes to `main` are disabled. To merge changes into `main`, the following rules are enforced:
+- **Require a pull request before merging:** All changes must be made through a PR.
+- **Require approvals:** At least 1 review approval is required.
+- **Require status checks to pass before merging:** CI checks (build, test, lint) must pass.
+- **Do not allow bypassing the above settings:** Administrators must also follow these rules.
+- **Restrict force pushes:** Force pushes to `main` are not allowed.
+
+### Enabling Branch Protection (For Admins)
+To configure these rules via GitHub repository settings:
+1. Go to the repository **Settings** > **Branches**.
+2. Click **Add branch protection rule**.
+3. Set **Branch name pattern** to `main`.
+4. Check **Require a pull request before merging**, and set **Require approvals** to 1.
+5. Check **Require status checks to pass before merging** and require your CI checks.
+6. Check **Do not allow bypassing the above settings**.
+7. Ensure **Allow force pushes** is unchecked.
+8. Click **Create** or **Save changes**.
+
 ## Coding Standards
 
 - Follow existing code style and module structure

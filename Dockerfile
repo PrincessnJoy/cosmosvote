@@ -16,9 +16,6 @@ RUN rustup target add wasm32-unknown-unknown
 RUN curl -sSL https://github.com/stellar/stellar-cli/releases/download/v22.0.1/stellar-cli-22.0.1-x86_64-unknown-linux-gnu.tar.gz \
     | tar -xz -C /usr/local/bin
 
-# Install cargo tools
-# RUN cargo install cargo-tarpaulin --locked
-
 WORKDIR /app
 
 # Cache dependencies
@@ -34,5 +31,8 @@ RUN mkdir -p contracts/governance/src contracts/token/src \
 
 # Copy full source
 COPY . .
+
+# Install cargo tools
+# RUN cargo install cargo-tarpaulin --locked
 
 CMD ["make", "test"]

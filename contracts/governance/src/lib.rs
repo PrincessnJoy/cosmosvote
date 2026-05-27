@@ -16,12 +16,14 @@ mod test;
 mod test_helpers;
 #[cfg(test)]
 mod prop_tests;
+#[cfg(test)]
+mod benchmarks;
 
-use soroban_sdk::{contract, contractimpl, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 use events::GovernanceEvents;
 use storage::GovernanceStorage;
-use types::{ContractError, ContractState, Proposal, ProposalState, Vote, VoteRecord};
+use types::{ContractError, ContractState, GovernanceConfig, Proposal, ProposalState, Vote, VoteRecord};
 
 // ---------------------------------------------------------------------------
 // Token interface (cross-contract call)
@@ -58,6 +60,7 @@ impl GovernanceContract {
     /// * `voting_token`         – SEP-41 governance token address
     /// * `min_proposal_balance` – minimum token balance to create proposals (0 = none)
     /// * `proposal_cooldown`    – seconds between proposals per address (0 = none)
+    /// * `min_quorum_bps`       – minimum quorum floor in basis points (100 = 1%)
     /// * `restrict_admin_vote`  – if true, admin cannot vote on own proposals
     pub fn initialize(
         env: Env,
@@ -65,6 +68,7 @@ impl GovernanceContract {
         voting_token: Address,
         min_proposal_balance: i128,
         proposal_cooldown: u64,
+        min_quorum_bps: u32,
         restrict_admin_vote: bool,
     ) -> Result<(), ContractError> {
         if GovernanceStorage::contract_state(&env) != ContractState::Uninitialized {
@@ -76,6 +80,7 @@ impl GovernanceContract {
         GovernanceStorage::set_proposal_count(&env, 0);
         GovernanceStorage::set_min_proposal_balance(&env, min_proposal_balance);
         GovernanceStorage::set_proposal_cooldown(&env, proposal_cooldown);
+        GovernanceStorage::set_min_quorum_bps(&env, min_quorum_bps);
         GovernanceStorage::set_restrict_admin_vote(&env, restrict_admin_vote);
         GovernanceStorage::set_paused(&env, false);
         GovernanceStorage::set_contract_state(&env, ContractState::Ready);
@@ -83,6 +88,18 @@ impl GovernanceContract {
 
         GovernanceEvents::initialized(&env, &admin, &voting_token);
         Ok(())
+    }
+
+    /// Retrieve the current governance configuration.
+    pub fn get_config(env: Env) -> GovernanceConfig {
+        GovernanceConfig {
+            admin: GovernanceStorage::admin(&env),
+            voting_token: GovernanceStorage::voting_token(&env),
+            min_proposal_balance: GovernanceStorage::min_proposal_balance(&env),
+            proposal_cooldown: GovernanceStorage::proposal_cooldown(&env),
+            restrict_admin_vote: GovernanceStorage::restrict_admin_vote(&env),
+            paused: GovernanceStorage::paused(&env),
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -123,6 +140,19 @@ impl GovernanceContract {
 
         if quorum > total_supply {
             return Err(ContractError::QuorumExceedsSupply);
+        }
+
+        // Quorum floor check
+        let min_quorum_bps = GovernanceStorage::min_quorum_bps(&env);
+        if min_quorum_bps > 0 {
+            let floor = total_supply
+                .checked_mul(min_quorum_bps as i128)
+                .and_then(|v| v.checked_div(10_000))
+                .ok_or(ContractError::ArithmeticOverflow)?;
+            
+            if quorum < floor {
+                return Err(ContractError::QuorumBelowFloor);
+            }
         }
 
         // Balance check
@@ -178,6 +208,44 @@ impl GovernanceContract {
     /// Total number of proposals created.
     pub fn proposal_count(env: Env) -> u64 {
         GovernanceStorage::proposal_count(&env)
+    }
+
+    /// Paginated list of proposals.
+    pub fn get_proposals(env: Env, from_id: u64, limit: u32) -> Vec<Proposal> {
+        let count = GovernanceStorage::proposal_count(&env);
+        let limit = if limit > 20 { 20 } else { limit };
+        let mut proposals = Vec::new(&env);
+
+        let end = (from_id + limit as u64).min(count);
+        for id in from_id..end {
+            if let Some(proposal) = GovernanceStorage::proposal(&env, id) {
+                proposals.push_back(proposal);
+            }
+        }
+        proposals
+    }
+
+    /// Paginated list of proposals filtered by state.
+    pub fn get_proposals_by_state(
+        env: Env,
+        state: ProposalState,
+        from_id: u64,
+        limit: u32,
+    ) -> Vec<Proposal> {
+        let count = GovernanceStorage::proposal_count(&env);
+        let limit = if limit > 20 { 20 } else { limit };
+        let mut proposals = Vec::new(&env);
+
+        let mut current_id = from_id;
+        while proposals.len() < limit && current_id < count {
+            if let Some(proposal) = GovernanceStorage::proposal(&env, current_id) {
+                if proposal.state == state {
+                    proposals.push_back(proposal);
+                }
+            }
+            current_id += 1;
+        }
+        proposals
     }
 
     // -----------------------------------------------------------------------
