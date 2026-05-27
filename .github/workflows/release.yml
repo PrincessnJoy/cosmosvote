@@ -36,11 +36,27 @@ jobs:
           sha256sum *.wasm > checksums.sha256
           cat checksums.sha256
 
+      - name: Extract version from Cargo.toml
+        id: cargo_version
+        run: |
+          VERSION=$(grep '^version =' contracts/governance/Cargo.toml | cut -d '"' -f 2)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CARGO_VERSION="${{ steps.cargo_version.outputs.version }}"
+          if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match Cargo.toml version ($CARGO_VERSION)"
+            exit 1
+          fi
+
       - name: Extract changelog entry
         id: changelog
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          NOTES=$(awk "/^## \[$VERSION\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md)
+          # Extract notes between the version header and the next header
+          NOTES=$(sed -n "/## \[$VERSION\]/,/## \[/p" CHANGELOG.md | sed '1d;$d')
           echo "notes<<EOF" >> "$GITHUB_OUTPUT"
           echo "$NOTES" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
@@ -48,8 +64,11 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: Release v${{ steps.cargo_version.outputs.version }}
           body: ${{ steps.changelog.outputs.notes }}
           files: |
             release/cosmosvote_governance.wasm
             release/cosmosvote_token.wasm
             release/checksums.sha256
+          draft: false
+          prerelease: false
