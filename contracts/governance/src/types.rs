@@ -106,3 +106,14 @@ pub struct VoteRecord {
     pub vote: Vote,
     pub weight: i128,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct GovernanceConfig {
+    pub admin: Address,
+    pub voting_token: Address,
+    pub min_proposal_balance: i128,
+    pub proposal_cooldown: u64,
+    pub restrict_admin_vote: bool,
+    pub paused: bool,
+}
