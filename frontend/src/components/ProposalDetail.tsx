@@ -2,6 +2,7 @@ import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useState } from 'react';
 import { formatTokenAmount } from '../utils';
+import '../responsive.css';
 
 interface Props {
   proposal: Proposal;
@@ -63,7 +64,7 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
           </tbody>
         </table>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+        <div className="vote-grid">
           {[
             { label: '✅ Yes', value: p.votes_yes, color: '#16a34a' },
             { label: '❌ No', value: p.votes_no, color: '#dc2626' },
