@@ -2,6 +2,7 @@ import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useState } from 'react';
 import { formatTokenAmount } from '../utils';
+import styles from './ProposalDetail.module.css';
 
 interface Props {
   proposal: Proposal;
@@ -27,25 +28,23 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
   const total = p.votes_yes + p.votes_no + p.votes_abstain;
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-    }}
-      onClick={onClose}
-    >
+    <div className={styles.overlay} onClick={onClose}>
       <div
-        style={{ background: '#fff', borderRadius: 12, padding: '2rem', maxWidth: 600, width: '90%', maxHeight: '80vh', overflowY: 'auto' }}
+        className={styles.dialog}
         onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-title"
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <h2 style={{ margin: 0 }}>Proposal #{String(p.id)}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+        <div className={styles.dialogHeader}>
+          <h2 id="detail-title" className={styles.dialogTitle}>Proposal #{String(p.id)}</h2>
+          <button onClick={onClose} className={styles.closeBtn} aria-label="Close">×</button>
         </div>
 
-        <h3 style={{ margin: '0 0 0.5rem' }}>{p.title}</h3>
-        <p style={{ color: '#555' }}>{p.description}</p>
+        <h3 className={styles.proposalTitle}>{p.title}</h3>
+        <p className={styles.description}>{p.description}</p>
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
+        <table className={styles.table}>
           <tbody>
             {[
               ['State', p.state],
@@ -55,29 +54,29 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
               ['Quorum', formatTokenAmount(p.quorum, decimals)],
               ['Total Votes', formatTokenAmount(total, decimals)],
             ].map(([k, v]) => (
-              <tr key={k} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '0.4rem 0', color: '#888', width: '40%' }}>{k}</td>
-                <td style={{ padding: '0.4rem 0', fontWeight: 500 }}>{v}</td>
+              <tr key={k}>
+                <td>{k}</td>
+                <td>{v}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+        <div className={styles.voteGrid}>
           {[
-            { label: '✅ Yes', value: p.votes_yes, color: '#16a34a' },
-            { label: '❌ No', value: p.votes_no, color: '#dc2626' },
-            { label: '⬜ Abstain', value: p.votes_abstain, color: '#6b7280' },
+            { label: '✅ Yes', value: p.votes_yes, color: 'var(--color-green)' },
+            { label: '❌ No', value: p.votes_no, color: 'var(--color-red)' },
+            { label: '⬜ Abstain', value: p.votes_abstain, color: 'var(--color-gray)' },
           ].map(({ label, value, color }) => (
-            <div key={label} style={{ textAlign: 'center', padding: '0.75rem', background: '#f9fafb', borderRadius: 8 }}>
-              <div style={{ fontSize: '0.75rem', color: '#888' }}>{label}</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 700, color }}>{formatTokenAmount(value, decimals).replace(' CVT', '')}</div>
+            <div key={label} className={styles.voteBox}>
+              <div className={styles.voteLabel}>{label}</div>
+              <div className={styles.voteCount} style={{ color }}>{formatTokenAmount(value, decimals).replace(' CVT', '')}</div>
             </div>
           ))}
         </div>
 
         {walletAddress && (
-          <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem' }}>
+          <div className={styles.voteStatus}>
             {hasVoted === null ? 'Checking vote status...' :
               hasVoted && voteRecord
                 ? `You voted ${voteRecord.vote} with weight ${formatTokenAmount(voteRecord.weight, decimals)}`
