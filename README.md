@@ -236,6 +236,14 @@ pub fn finalise(env: Env, proposal_id: u64) -> Result<(), ContractError>
 
 Pass conditions: `total_votes >= quorum AND votes_yes > votes_no`
 
+### Upgrade
+
+```rust
+pub fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), ContractError>
+```
+
+Admin-only upgrade uses `env.deployer().update_current_contract_wasm()` and emits an `Upgraded` event.
+
 ### Execute / Cancel
 
 ```rust
@@ -246,6 +254,9 @@ pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), Contract
 ---
 
 ## Token Contract Reference
+
+See `docs/upgrade.md` for the governance contract upgrade path.
+
 
 ### Initialization
 
