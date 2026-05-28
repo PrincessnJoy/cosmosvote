@@ -1,12 +1,13 @@
 import type { Proposal, ProposalState } from '../types';
 import { formatTokenAmount } from '../utils';
+import styles from './ProposalCard.module.css';
 
 const STATE_COLORS: Record<ProposalState, string> = {
-  Active: '#2563eb',
-  Passed: '#16a34a',
-  Rejected: '#dc2626',
-  Executed: '#7c3aed',
-  Cancelled: '#6b7280',
+  Active: 'var(--color-state-active)',
+  Passed: 'var(--color-state-passed)',
+  Rejected: 'var(--color-state-rejected)',
+  Executed: 'var(--color-state-executed)',
+  Cancelled: 'var(--color-state-cancelled)',
 };
 
 interface Props {
@@ -46,46 +47,26 @@ export function ProposalCard({ proposal: p, decimals, onClick }: Props) {
       tabIndex={0}
       role="button"
       aria-label={`Proposal #${p.id}: ${p.title}`}
-      style={{
-        border: `1px solid ${color}`,
-        borderRadius: 8,
-        padding: '1rem',
-        cursor: 'pointer',
-        background: '#fff',
-        transition: 'box-shadow 0.15s, border-color 0.15s',
-        outline: 'none',
-      }}
-      onMouseEnter={e => (e.currentTarget.style.boxShadow = `0 4px 12px ${color}44`)}
-      onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
-      onFocus={e => {
-        e.currentTarget.style.boxShadow = `0 0 0 3px ${color}44`;
-        e.currentTarget.style.borderColor = color;
-      }}
-      onBlur={e => {
-        e.currentTarget.style.boxShadow = 'none';
-        e.currentTarget.style.borderColor = color;
-      }}
+      className={styles.card}
+      style={{ borderColor: color }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <h3 style={{ margin: 0, fontSize: '1rem' }}>#{String(p.id)} — {p.title}</h3>
-        <span style={{ background: color, color: '#fff', borderRadius: 4, padding: '2px 8px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+      <div className={styles.cardHeader}>
+        <h3 className={styles.cardTitle}>#{String(p.id)} — {p.title}</h3>
+        <span className={styles.stateBadge} style={{ background: color }}>
           {p.state}
         </span>
       </div>
 
-      <p style={{ margin: '0.5rem 0', color: '#555', fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {p.description}
-      </p>
+      <p className={styles.description}>{p.description}</p>
 
-      <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '0.5rem' }}>
+      <div className={styles.meta}>
         Ends {formatDate(p.end_time)} · Quorum {formatTokenAmount(p.quorum, decimals)}
       </div>
 
-      {/* Quorum progress bar */}
-      <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6 }}>
-        <div style={{ background: color, width: `${pct}%`, height: '100%', borderRadius: 4, transition: 'width 0.3s' }} />
+      <div className={styles.progressTrack}>
+        <div className={styles.progressBar} style={{ background: color, width: `${pct}%` }} />
       </div>
-      <div style={{ fontSize: '0.7rem', color: '#888', marginTop: 2 }}>
+      <div className={styles.voteCounts}>
         {pct}% of quorum · ✅ {formatTokenAmount(p.votes_yes, decimals)} · ❌ {formatTokenAmount(p.votes_no, decimals)} · ⬜ {formatTokenAmount(p.votes_abstain, decimals)}
       </div>
     </article>
