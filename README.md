@@ -236,6 +236,8 @@ pub fn finalise(env: Env, proposal_id: u64) -> Result<(), ContractError>
 
 Pass conditions: `total_votes >= quorum AND votes_yes > votes_no`
 
+`finalise()` is permissionless and is expected to be called by an off-chain keeper or bot after the voting period ends. The repository includes a keeper script at `scripts/finalise-expired-proposals.sh` and a GitHub Action workflow `.github/workflows/auto-finalise.yml` to help automate finalization for expired proposals.
+
 ### Execute / Cancel
 
 ```rust
