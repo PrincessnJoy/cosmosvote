@@ -411,17 +411,35 @@ fn test_update_quorum() {
 }
 
 #[test]
-fn test_update_quorum_with_votes_fails() {
+fn test_update_quorum_after_timelock_window_fails() {
     let env = Env::default();
     let (gov, _, admin, voter, _) = setup(&env);
     let id = make_proposal(&gov, &env, &voter);
-    
-    // Cast a vote
-    gov.cast_vote(&voter, &id, &Vote::Yes);
-    
-    // Attempt to update quorum
+    let proposal = gov.get_proposal(&id);
+
+    // Advance past the first 10% of the voting period
+    let duration = proposal.end_time - proposal.start_time; // 604_800
+    let window = duration / 10;                              // 60_480
+    env.ledger().with_mut(|l| l.timestamp = proposal.start_time + window + 1);
+
     let result = gov.try_update_quorum(&admin, &id, &1_000_000i128);
     assert_eq!(result, Err(Ok(ContractError::QuorumUpdateNotAllowed)));
+}
+
+#[test]
+fn test_update_quorum_within_timelock_window_succeeds() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    let proposal = gov.get_proposal(&id);
+
+    // Stay within the first 10% window
+    let duration = proposal.end_time - proposal.start_time;
+    let window = duration / 10;
+    env.ledger().with_mut(|l| l.timestamp = proposal.start_time + window - 1);
+
+    gov.update_quorum(&admin, &id, &1_000_000i128);
+    assert_eq!(gov.get_proposal(&id).quorum, 1_000_000);
 }
 
 // ---------------------------------------------------------------------------
