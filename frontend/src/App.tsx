@@ -1,13 +1,19 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
+import { fetchAllProposals, fetchTokenDecimals } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
+import { Pagination } from './components/Pagination';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
+const PAGE_SIZE = 20;
+
+async function connect() {
+  // wallet connection placeholder
+}
 
 export default function App() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -16,9 +22,10 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
+  const [walletAddress] = useState<string | null>(null);
+  const [tokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
@@ -30,6 +37,9 @@ export default function App() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Reset to page 1 when filter or search changes
+  useEffect(() => { setPage(1); }, [search, stateFilter]);
+
   const filtered = useMemo(() => {
     return proposals.filter(p => {
       const matchState = stateFilter === 'All' || p.state === stateFilter;
@@ -38,6 +48,9 @@ export default function App() {
       return matchState && matchSearch;
     });
   }, [proposals, search, stateFilter]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
@@ -105,7 +118,7 @@ export default function App() {
 
         {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
-        
+
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
@@ -117,10 +130,21 @@ export default function App() {
           {!loading && !error && filtered.length === 0 && (
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
-          {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+          {!loading && paginated.map(p => (
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
+
+        {!loading && filtered.length > 0 && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={filtered.length}
+            pageSize={PAGE_SIZE}
+            onPrev={() => setPage(p => Math.max(1, p - 1))}
+            onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+          />
+        )}
       </main>
 
       {selected && (
