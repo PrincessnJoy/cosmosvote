@@ -1,6 +1,6 @@
 //! Governance contract — on-chain event emission.
 
-use soroban_sdk::{symbol_short, Address, Env, String};
+use soroban_sdk::{symbol_short, Address, BytesN, Env, String};
 
 use crate::types::{ProposalState, Vote};
 
@@ -46,6 +46,13 @@ impl GovernanceEvents {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("exec")),
             (proposal_id, admin.clone()),
+        );
+    }
+
+    pub fn contract_upgraded(env: &Env, new_wasm_hash: &BytesN<32>) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("upgraded")),
+            (new_wasm_hash.clone(),),
         );
     }
 

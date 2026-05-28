@@ -19,7 +19,7 @@ mod prop_tests;
 #[cfg(test)]
 mod benchmarks;
 
-use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use events::GovernanceEvents;
 use storage::GovernanceStorage;
@@ -392,6 +392,20 @@ impl GovernanceContract {
         proposal.state = ProposalState::Cancelled;
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin);
+        Ok(())
+    }
+
+    /// Upgrade the governance contract WASM. Admin only.
+    pub fn upgrade(
+        env: Env,
+        admin: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        GovernanceEvents::contract_upgraded(&env, &new_wasm_hash);
         Ok(())
     }
 
