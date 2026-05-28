@@ -1,13 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
+import { fetchAllProposals, fetchTokenDecimals } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
+import './responsive.css';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
+
+async function connect() {
+  // wallet connection placeholder
+}
 
 export default function App() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -16,8 +21,8 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
+  const [walletAddress] = useState<string | null>(null);
+  const [tokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
 
   useEffect(() => {
@@ -41,8 +46,8 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
-      {/* Header */}
-      <header style={{ background: '#1e293b', color: '#fff', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header — stacks on mobile via .app-header */}
+      <header className="app-header">
         <div>
           <h1 style={{ margin: 0, fontSize: '1.5rem' }}>🌌 CosmosVote</h1>
           <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>On-chain governance · {ACTIVE_NETWORK}</span>
@@ -66,7 +71,7 @@ export default function App() {
         </div>
       </header>
 
-      <main style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1rem' }}>
+      <main className="main-content">
         {/* Filters */}
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <input
@@ -88,8 +93,8 @@ export default function App() {
           </select>
         </div>
 
-        {/* Stats bar */}
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        {/* Stats bar — wraps on mobile via .stats-bar */}
+        <div className="stats-bar">
           {[
             { label: 'Total', count: proposals.length, color: '#1e293b' },
             { label: 'Active', count: proposals.filter(p => p.state === 'Active').length, color: '#2563eb' },
@@ -105,7 +110,7 @@ export default function App() {
 
         {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
-        
+
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
@@ -118,7 +123,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>
