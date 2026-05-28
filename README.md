@@ -236,6 +236,8 @@ pub fn finalise(env: Env, proposal_id: u64) -> Result<(), ContractError>
 
 Pass conditions: `total_votes >= quorum AND votes_yes > votes_no`
 
+The `finalise()` function is permissionless and is intended to be called by an off-chain keeper or bot after the voting period ends. This ensures proposals do not stay stuck in `Active` state even if no single voter submits the finalization transaction.
+
 ### Execute / Cancel
 
 ```rust
@@ -259,7 +261,7 @@ pub fn initialize(env: Env, admin: Address, initial_supply: i128) -> Result<(), 
 pub fn transfer(env: Env, from: Address, to: Address, amount: i128) -> Result<(), ContractError>
 pub fn mint(env: Env, admin: Address, to: Address, amount: i128) -> Result<(), ContractError>
 pub fn burn(env: Env, admin: Address, from: Address, amount: i128) -> Result<(), ContractError>
-pub fn approve(env: Env, owner: Address, spender: Address, amount: i128) -> Result<(), ContractError>
+pub fn approve(env: Env, owner: Address, spender: Address, amount: i128, expiry_ledger: u32) -> Result<(), ContractError>
 pub fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128) -> Result<(), ContractError>
 ```
 

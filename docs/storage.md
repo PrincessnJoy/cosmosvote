@@ -56,7 +56,7 @@ CosmosVote uses Soroban's three storage tiers strategically to minimize costs.
 
 | Key | Type | Notes |
 |-----|------|-------|
-| `Allowance(owner, spender)` | `i128` | Expires with ledger TTL |
+| `Allowance(owner, spender)` | `Allowance { amount: i128, expiry_ledger: u32 }` | Expires after `expiry_ledger`, with TTL bumped on allowance reads and writes |
 
 ## Rationale
 
