@@ -8,38 +8,52 @@ interface Props {
   decimals: number;
   walletAddress: string | null;
   onClose: () => void;
+  onAnnounce?: (msg: string) => void;
 }
 
 function formatDate(ts: bigint): string {
   return new Date(Number(ts) * 1000).toLocaleString();
 }
 
-export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }: Props) {
+export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, onAnnounce }: Props) {
   const [hasVoted, setHasVoted] = useState<boolean | null>(null);
   const [voteRecord, setVoteRecord] = useState<{ vote: string; weight: bigint } | null>(null);
 
   useEffect(() => {
     if (!walletAddress) return;
-    fetchHasVoted(Number(p.id), walletAddress).then(setHasVoted);
-    fetchVoteRecord(Number(p.id), walletAddress).then(setVoteRecord);
+    onAnnounce?.('Checking vote status…');
+    Promise.all([
+      fetchHasVoted(Number(p.id), walletAddress),
+      fetchVoteRecord(Number(p.id), walletAddress),
+    ]).then(([voted, record]) => {
+      setHasVoted(voted);
+      setVoteRecord(record);
+      onAnnounce?.(voted && record
+        ? `You previously voted ${record.vote} on this proposal.`
+        : 'You have not voted on this proposal.');
+    });
   }, [p.id, walletAddress]);
 
   const total = p.votes_yes + p.votes_no + p.votes_abstain;
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-    }}
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+      }}
       onClick={onClose}
     >
       <div
         style={{ background: '#fff', borderRadius: 12, padding: '2rem', maxWidth: 600, width: '90%', maxHeight: '80vh', overflowY: 'auto' }}
         onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-title"
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <h2 style={{ margin: 0 }}>Proposal #{String(p.id)}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+          <h2 id="detail-title" style={{ margin: 0 }}>Proposal #{String(p.id)}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }} aria-label="Close">×</button>
         </div>
 
         <h3 style={{ margin: '0 0 0.5rem' }}>{p.title}</h3>
