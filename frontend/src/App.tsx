@@ -4,15 +4,20 @@ import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api'
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
+import { AriaLive } from './components/AriaLive';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
+// Admin address — in production this would come from the contract or environment config
+const ADMIN_ADDRESS = import.meta.env.VITE_ADMIN_ADDRESS ?? null;
+
 export default function App() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState('');
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
@@ -20,15 +25,33 @@ export default function App() {
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
 
-  useEffect(() => {
+  const loadProposals = () => {
+    setLoading(true);
+    setAnnouncement('Loading proposals…');
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
       .then(([props, decs]) => {
         setProposals(props);
         setDecimals(decs);
+        setAnnouncement(`${props.length} proposal${props.length !== 1 ? 's' : ''} loaded.`);
       })
-      .catch(e => setError(String(e)))
+      .catch(e => {
+        setError(String(e));
+        setAnnouncement('');
+      })
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => { loadProposals(); }, []);
+
+  const connect = () => {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) {
+      setWalletAddress(addr);
+      fetchTokenBalance(addr)
+        .then(setTokenBalance)
+        .catch(() => setTokenBalance(null));
+    }
+  };
 
   const filtered = useMemo(() => {
     return proposals.filter(p => {
@@ -41,6 +64,8 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
+      <AriaLive polite={announcement} assertive={error ?? undefined} />
+
       {/* Header */}
       <header style={{ background: '#1e293b', color: '#fff', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -105,7 +130,7 @@ export default function App() {
 
         {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
-        
+
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
@@ -118,7 +143,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>
@@ -128,7 +153,11 @@ export default function App() {
           proposal={selected}
           decimals={decimals}
           walletAddress={walletAddress}
+          adminAddress={ADMIN_ADDRESS}
           onClose={() => setSelected(null)}
+          onRefresh={loadProposals}
+          onAnnounce={setAnnouncement}
+          onError={msg => setError(msg)}
         />
       )}
     </div>
