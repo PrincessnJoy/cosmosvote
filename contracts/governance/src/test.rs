@@ -370,6 +370,53 @@ fn test_cancel_non_admin_fails() {
 }
 
 // ---------------------------------------------------------------------------
+// Cancel voter count and cleanup (issue #24)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_cancel_tracks_voter_count() {
+    let env = Env::default();
+    let (gov, _, admin, voter, voter2) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    gov.cast_vote(&voter2, &id, &Vote::No);
+    let proposal_before = gov.get_proposal(&id);
+    assert_eq!(proposal_before.voter_count, 2);
+    gov.cancel(&admin, &id);
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.state, ProposalState::Cancelled);
+    assert_eq!(proposal.voter_count, 2);
+}
+
+#[test]
+fn test_cleanup_cancelled_proposal_removes_records() {
+    let env = Env::default();
+    let (gov, _, admin, voter, voter2) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    gov.cast_vote(&voter2, &id, &Vote::No);
+    gov.cancel(&admin, &id);
+
+    let mut voters = soroban_sdk::vec![&env];
+    voters.push_back(voter.clone());
+    voters.push_back(voter2.clone());
+    gov.cleanup_cancelled_proposal(&admin, &id, &voters);
+
+    assert!(!gov.has_voted(&id, &voter));
+    assert!(!gov.has_voted(&id, &voter2));
+}
+
+#[test]
+fn test_cleanup_non_cancelled_fails() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    let voters = soroban_sdk::vec![&env];
+    let result = gov.try_cleanup_cancelled_proposal(&admin, &id, &voters);
+    assert_eq!(result, Err(Ok(ContractError::ProposalNotActive)));
+}
+
+// ---------------------------------------------------------------------------
 // Admin operations
 // ---------------------------------------------------------------------------
 
