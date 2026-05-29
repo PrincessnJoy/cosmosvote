@@ -189,6 +189,32 @@ fn test_transfer_admin_non_admin_fails() {
     assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
 }
 
+#[test]
+fn test_transfer_admin_emits_event() {
+    use soroban_sdk::testutils::Events;
+    use soroban_sdk::{symbol_short, vec, IntoVal};
+
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    token.transfer_admin(&admin, &user);
+
+    let events = env.events().all();
+    let last = events.last().unwrap();
+    // topics: ("token", "admin")
+    assert_eq!(
+        last.1,
+        vec![
+            &env,
+            symbol_short!("token").into_val(&env),
+            symbol_short!("admin").into_val(&env),
+        ]
+    );
+    // data: (old_admin, new_admin)
+    let data: (Address, Address) = last.2.into_val(&env);
+    assert_eq!(data.0, admin);
+    assert_eq!(data.1, user);
+}
+
 // ---------------------------------------------------------------------------
 // Version
 // ---------------------------------------------------------------------------
