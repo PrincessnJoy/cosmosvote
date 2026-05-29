@@ -54,6 +54,7 @@ pub fn create_proposal(t: &TestEnv, proposer: &Address) -> u64 {
         &String::from_str(t.env, "A test governance proposal for CosmosVote"),
         &5_000_000i128,
         &604_800u64,
+        &None,
     )
 }
 

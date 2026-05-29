@@ -44,6 +44,7 @@ proptest! {
             &String::from_str(&env, "Description"),
             &(yes_weight / 2),
             &3600u64,
+            &None,
         );
 
         gov.cast_vote(&voter, &id, &Vote::Yes);
@@ -86,6 +87,7 @@ proptest! {
             &String::from_str(&env, "Verify vote totals"),
             &(supply / 2),
             &3600u64,
+            &None,
         );
 
         gov.cast_vote(&voter_a, &id, &Vote::Yes);
@@ -126,6 +128,7 @@ proptest! {
             &String::from_str(&env, "Should pass"),
             &quorum,
             &3600u64,
+            &None,
         );
 
         gov.cast_vote(&voter_yes, &id, &Vote::Yes);

@@ -33,6 +33,7 @@ fn run_voter_benchmark(voter_count: u32) {
         &String::from_str(&env, "Stress testing governance with many voters"),
         &1_000_000i128,
         &604_800u64,
+        &None,
     );
 
     // Generate voters and cast votes

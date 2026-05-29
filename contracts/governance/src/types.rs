@@ -49,6 +49,9 @@ pub enum ContractError {
 
     // Arithmetic
     ArithmeticOverflow  = 50,
+
+    // Misc
+    InvalidLink         = 51,
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +86,7 @@ pub struct Proposal {
     pub proposer: Address,
     pub title: String,
     pub description: String,
+    pub link: Option<String>,
     pub votes_yes: i128,
     pub votes_no: i128,
     pub votes_abstain: i128,
