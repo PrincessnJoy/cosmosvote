@@ -297,6 +297,11 @@ impl GovernanceContract {
             return Err(ContractError::NoVotingPower);
         }
 
+        // Overflow is theoretically impossible: each voter's weight comes from their token
+        // balance, and the sum of all balances equals total_supply which is bounded by
+        // i128::MAX (170_141_183_460_469_231_731_687_303_715_884_105_727). The token contract
+        // enforces this via checked_add on mint, so total votes can never exceed total_supply.
+        // checked_add is retained as a defence-in-depth guard.
         match vote {
             Vote::Yes => proposal.votes_yes = proposal.votes_yes.checked_add(weight)
                 .ok_or(ContractError::ArithmeticOverflow)?,

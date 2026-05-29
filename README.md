@@ -251,6 +251,10 @@ pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), Contract
 
 The CosmosVote token contract implements the **Stellar Enhancement Proposal 41 (SEP-41)** standard for token contracts on Soroban. This ensures wallet and explorer compatibility for token discovery, display, and transfer operations.
 
+### Theoretical Maximum Supply
+
+The token contract stores all balances and the total supply as `i128`. The maximum representable value is `i128::MAX = 170_141_183_460_469_231_731_687_303_715_884_105_727`. Mint operations use `checked_add` to enforce this bound — any mint that would exceed `i128::MAX` returns `ArithmeticOverflow`. In practice, governance vote tallies are bounded by total supply, making arithmetic overflow in `cast_vote` impossible for any valid token supply.
+
 ### Initialization
 
 ```rust
