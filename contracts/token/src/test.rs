@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 use crate::{types::ContractError, TokenContract, TokenContractClient};
 
@@ -12,7 +12,13 @@ fn setup(env: &Env) -> (TokenContractClient, Address, Address) {
     let user = Address::generate(env);
     let id = env.register(TokenContract, ());
     let token = TokenContractClient::new(env, &id);
-    token.initialize(&admin, &1_000_000_000i128);
+    token.initialize(
+        &admin,
+        &1_000_000_000i128,
+        &String::from_slice(env, "CosmosVote"),
+        &String::from_slice(env, "VOTE"),
+        &7u32,
+    );
     (token, admin, user)
 }
 
@@ -32,7 +38,13 @@ fn test_initialize() {
 fn test_double_init_fails() {
     let env = Env::default();
     let (token, admin, _) = setup(&env);
-    let result = token.try_initialize(&admin, &1_000_000i128);
+    let result = token.try_initialize(
+        &admin,
+        &1_000_000i128,
+        &String::from_slice(&env, "Coin"),
+        &String::from_slice(&env, "COIN"),
+        &7u32,
+    );
     assert_eq!(result, Err(Ok(ContractError::AlreadyInitialized)));
 }
 
@@ -186,4 +198,29 @@ fn test_version() {
     let env = Env::default();
     let (token, _, _) = setup(&env);
     assert_eq!(token.version(), (1u32, 0u32, 0u32));
+}
+
+// ---------------------------------------------------------------------------
+// SEP-41 Metadata
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_name() {
+    let env = Env::default();
+    let (token, _, _) = setup(&env);
+    assert_eq!(token.name(), String::from_slice(&env, "CosmosVote"));
+}
+
+#[test]
+fn test_symbol() {
+    let env = Env::default();
+    let (token, _, _) = setup(&env);
+    assert_eq!(token.symbol(), String::from_slice(&env, "VOTE"));
+}
+
+#[test]
+fn test_decimals() {
+    let env = Env::default();
+    let (token, _, _) = setup(&env);
+    assert_eq!(token.decimals(), 7u32);
 }

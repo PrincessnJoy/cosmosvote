@@ -15,6 +15,9 @@ NETWORK="${NETWORK:-local}"
 STELLAR_RPC_URL="${STELLAR_RPC_URL:-http://localhost:8000}"
 STELLAR_SECRET_KEY="${STELLAR_SECRET_KEY:?STELLAR_SECRET_KEY must be set}"
 INITIAL_TOKEN_SUPPLY="${INITIAL_TOKEN_SUPPLY:-1000000000}"
+TOKEN_NAME="${TOKEN_NAME:-CosmosVote}"
+TOKEN_SYMBOL="${TOKEN_SYMBOL:-VOTE}"
+TOKEN_DECIMALS="${TOKEN_DECIMALS:-7}"
 MIN_PROPOSAL_BALANCE="${MIN_PROPOSAL_BALANCE:-0}"
 PROPOSAL_COOLDOWN="${PROPOSAL_COOLDOWN:-0}"
 RESTRICT_ADMIN_VOTE="${RESTRICT_ADMIN_VOTE:-false}"
@@ -71,7 +74,10 @@ stellar contract invoke \
   --network-passphrase "$PASSPHRASE" \
   -- initialize \
   --admin "$ADMIN_ADDRESS" \
-  --initial_supply "$INITIAL_TOKEN_SUPPLY"
+  --initial_supply "$INITIAL_TOKEN_SUPPLY" \
+  --name "$TOKEN_NAME" \
+  --symbol "$TOKEN_SYMBOL" \
+  --decimals "$TOKEN_DECIMALS"
 
 # ─── Deploy governance contract ──────────────────────────────────────────────
 echo ">>> Deploying governance contract..."
