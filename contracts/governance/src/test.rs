@@ -480,6 +480,71 @@ fn test_update_quorum_with_votes_fails() {
 }
 
 // ---------------------------------------------------------------------------
+// Admin vote restriction (issue #14)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_restrict_admin_vote_blocks_all_proposals() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let voter = Address::generate(&env);
+
+    let token_id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &token_id);
+    token.initialize(&admin, &1_000_000_000i128);
+    token.mint(&admin, &voter, &10_000_000i128);
+    token.mint(&admin, &admin, &10_000_000i128);
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &true);
+
+    // Proposal created by voter (not admin)
+    let id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "Voter Proposal"),
+        &String::from_str(&env, "desc"),
+        &5_000_000i128,
+        &604_800u64,
+    );
+
+    // Admin should be blocked even on proposals they didn't create
+    let result = gov.try_cast_vote(&admin, &id, &Vote::Yes);
+    assert_eq!(result, Err(Ok(ContractError::AdminVoteRestricted)));
+}
+
+#[test]
+fn test_restrict_admin_vote_false_allows_admin_to_vote() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let voter = Address::generate(&env);
+
+    let token_id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &token_id);
+    token.initialize(&admin, &1_000_000_000i128);
+    token.mint(&admin, &voter, &10_000_000i128);
+    token.mint(&admin, &admin, &10_000_000i128);
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
+
+    let id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "Voter Proposal"),
+        &String::from_str(&env, "desc"),
+        &5_000_000i128,
+        &604_800u64,
+    );
+
+    // Admin can vote when flag is false
+    gov.cast_vote(&admin, &id, &Vote::Yes);
+    assert!(gov.has_voted(&id, &admin));
+}
+
+// ---------------------------------------------------------------------------
 // Proposal not found
 // ---------------------------------------------------------------------------
 
