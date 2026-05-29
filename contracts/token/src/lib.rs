@@ -208,6 +208,28 @@ impl TokenContract {
         Ok(())
     }
 
+    /// Burn your own tokens. Owner only.
+    pub fn burn_self(
+        env: Env,
+        owner: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        owner.require_auth();
+        Self::validate_amount(amount)?;
+
+        let bal = TokenStorage::balance(&env, &owner);
+        if bal < amount {
+            return Err(ContractError::InsufficientBalance);
+        }
+
+        let supply = TokenStorage::total_supply(&env);
+        TokenStorage::set_total_supply(&env, supply - amount);
+        TokenStorage::set_balance(&env, &owner, bal - amount);
+
+        TokenEvents::burned(&env, &owner, &owner, amount);
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Admin
     // -----------------------------------------------------------------------
