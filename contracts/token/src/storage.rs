@@ -58,14 +58,20 @@ impl TokenStorage {
     }
 
     pub fn name(env: &Env) -> String {
-        env.storage().instance().get(&InstanceKey::Name).unwrap_or(String::new(env, ""))
+        env.storage()
+            .instance()
+            .get(&InstanceKey::Name)
+            .unwrap_or(String::from_slice(env, ""))
     }
     pub fn set_name(env: &Env, v: &String) {
         env.storage().instance().set(&InstanceKey::Name, v);
     }
 
     pub fn symbol(env: &Env) -> String {
-        env.storage().instance().get(&InstanceKey::Symbol).unwrap_or(String::new(env, ""))
+        env.storage()
+            .instance()
+            .get(&InstanceKey::Symbol)
+            .unwrap_or(String::from_slice(env, ""))
     }
     pub fn set_symbol(env: &Env, v: &String) {
         env.storage().instance().set(&InstanceKey::Symbol, v);
