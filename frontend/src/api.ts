@@ -60,9 +60,40 @@ export async function fetchProposal(id: number): Promise<Proposal> {
   return raw as Proposal;
 }
 
-export async function fetchAllProposals(): Promise<Proposal[]> {
+export async function fetchAllProposals(
+  onProgress?: (loaded: number, total: number) => void
+): Promise<Proposal[]> {
   const count = await fetchProposalCount();
-  return Promise.all(Array.from({ length: count }, (_, i) => fetchProposal(i)));
+  const ids = Array.from({ length: count }, (_, i) => i);
+  return batchFetch(ids, async (id) => fetchProposal(id), 10, onProgress);
+}
+
+/**
+ * Fetch items in concurrency-limited batches.
+ * Failed individual fetches are skipped (null) rather than aborting all.
+ */
+export async function batchFetch<T>(
+  ids: number[],
+  fetcher: (id: number) => Promise<T>,
+  concurrency = 10,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<T[]> {
+  const results: T[] = [];
+  let loaded = 0;
+  const total = ids.length;
+
+  for (let i = 0; i < total; i += concurrency) {
+    const chunk = ids.slice(i, i + concurrency);
+    const settled = await Promise.allSettled(chunk.map(id => fetcher(id)));
+    for (const result of settled) {
+      if (result.status === 'fulfilled') results.push(result.value);
+      // skips rejected — individual failure doesn't abort the batch
+    }
+    loaded += chunk.length;
+    onProgress?.(Math.min(loaded, total), total);
+  }
+
+  return results;
 }
 
 export async function fetchHasVoted(proposalId: number, voter: string): Promise<boolean> {
