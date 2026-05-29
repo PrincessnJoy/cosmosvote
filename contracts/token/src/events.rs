@@ -46,4 +46,18 @@ impl TokenEvents {
             (old.clone(), new.clone()),
         );
     }
+
+    pub fn paused(env: &Env, admin: &Address) {
+        env.events().publish(
+            (symbol_short!("token"), symbol_short!("paused")),
+            admin.clone(),
+        );
+    }
+
+    pub fn unpaused(env: &Env, admin: &Address) {
+        env.events().publish(
+            (symbol_short!("token"), symbol_short!("unpause")),
+            admin.clone(),
+        );
+    }
 }
