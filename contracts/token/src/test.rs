@@ -130,6 +130,26 @@ fn test_burn_insufficient_fails() {
 }
 
 #[test]
+fn test_burn_self() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+
+    token.transfer(&admin, &user, &1_000_000i128);
+    token.burn_self(&user, &500_000i128);
+
+    assert_eq!(token.balance(&user), 500_000);
+    assert_eq!(token.total_supply(), 999_500_000);
+}
+
+#[test]
+fn test_burn_self_insufficient_balance_fails() {
+    let env = Env::default();
+    let (token, _, user) = setup(&env);
+    let result = token.try_burn_self(&user, &1_000_000i128);
+    assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
+}
+
+#[test]
 fn test_mint_non_admin_fails() {
     let env = Env::default();
     let (token, _, user) = setup(&env);

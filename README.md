@@ -259,6 +259,7 @@ pub fn initialize(env: Env, admin: Address, initial_supply: i128) -> Result<(), 
 pub fn transfer(env: Env, from: Address, to: Address, amount: i128) -> Result<(), ContractError>
 pub fn mint(env: Env, admin: Address, to: Address, amount: i128) -> Result<(), ContractError>
 pub fn burn(env: Env, admin: Address, from: Address, amount: i128) -> Result<(), ContractError>
+pub fn burn_self(env: Env, owner: Address, amount: i128) -> Result<(), ContractError>
 pub fn approve(env: Env, owner: Address, spender: Address, amount: i128) -> Result<(), ContractError>
 pub fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128) -> Result<(), ContractError>
 ```
