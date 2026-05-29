@@ -1,23 +1,24 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
+import { fetchAllProposals, fetchTokenDecimals } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
+import { ConnectWalletModal } from './components/ConnectWalletModal';
+import { useWallet } from './WalletContext';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
 export default function App() {
+  const { walletAddress, walletName, tokenBalance, showModal, openModal, disconnect } = useWallet();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
 
   useEffect(() => {
@@ -49,15 +50,26 @@ export default function App() {
         </div>
         <div style={{ textAlign: 'right' }}>
           {walletAddress ? (
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
-              {tokenBalance !== null && (
-                <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                  {walletName} · {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </div>
+                {tokenBalance !== null && (
+                  <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
+                )}
+              </div>
+              <button
+                onClick={disconnect}
+                aria-label="Disconnect wallet"
+                style={{ background: '#475569', color: '#fff', border: 'none', borderRadius: 6, padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.75rem' }}
+              >
+                Disconnect
+              </button>
             </div>
           ) : (
             <button
-              onClick={connect}
+              onClick={openModal}
               style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
             >
               Connect Wallet
@@ -105,7 +117,7 @@ export default function App() {
 
         {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
-        
+
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
@@ -131,6 +143,8 @@ export default function App() {
           onClose={() => setSelected(null)}
         />
       )}
+
+      {showModal && <ConnectWalletModal />}
     </div>
   );
 }
