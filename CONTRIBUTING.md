@@ -43,6 +43,50 @@ Open a GitHub Discussion or Issue tagged `enhancement`. Describe the use case an
 7. **Push** your branch: `git push origin feat/your-feature-name`
 8. **Open a Pull Request** against `main`
 
+## Smart Contract Development
+
+### Adding a new contract function
+- Add the public function in `contracts/<contract>/src/lib.rs`.
+- Add any required storage accessors in `contracts/<contract>/src/storage.rs`.
+- Add new errors to `contracts/<contract>/src/types.rs` when needed.
+- Add on-chain events in `contracts/<contract>/src/events.rs` for state changes.
+- Privileged functions must call `require_auth()` and validate inputs.
+
+### Writing unit tests
+- Add unit tests in `contracts/<contract>/src/test.rs`.
+- Use `Env::default()` and `env.mock_all_auths()`.
+- Register the contract client, initialize it, and exercise the new API.
+- Test both success and failure conditions using `try_*` helpers.
+- Verify state changes with `assert_eq!` and event behavior where applicable.
+
+### Adding property tests
+- Add property-based tests in `contracts/<contract>/src/prop_tests.rs`.
+- Use `proptest::prelude::*` and clear invariants.
+- Keep property tests focused on safety invariants such as no double-vote, supply limits, or authorization guarantees.
+- Use `prop_assert!` / `prop_assert_eq!` for assertions.
+
+### Updating events
+- Add new event emission methods in `contracts/<contract>/src/events.rs`.
+- Emit events for every meaningful state transition or admin action.
+- Use consistent event symbols and payload ordering.
+
+### Updating storage
+- Update `InstanceKey`, `PersistentKey`, or `TempKey` enums in `contracts/<contract>/src/storage.rs`.
+- Add helper getters/setters for new storage fields.
+- Keep storage keys stable and avoid changing existing keys unless necessary.
+
+## Code Review Checklist for Contract PRs
+- [ ] Public contract API changes are documented
+- [ ] Authorization is enforced on privileged entry points
+- [ ] Input validation is implemented for all new functions
+- [ ] State updates are covered by unit tests
+- [ ] Failure cases are covered by `try_*` tests
+- [ ] Property tests are added or updated for contract invariants
+- [ ] Events are emitted for relevant state changes
+- [ ] Storage schema changes are tracked in storage helpers
+- [ ] Documentation and README are updated if needed
+- [ ] `make fmt`, `make lint`, and `make test` pass
+
 ## Pull Request Requirements
 
 - [ ] All tests pass (`make test`)
