@@ -258,3 +258,73 @@ fn test_multiple_proposals_independent() {
     assert_eq!(proposal1.votes_yes, 3_000_000i128);
     assert_eq!(proposal2.votes_yes, 2_000_000i128);
 }
+
+// ---------------------------------------------------------------------------
+// Snapshot Voting Tests (Issue #23)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_snapshot_voting_prevents_post_creation_accumulation() {
+    let env = Env::default();
+    let (gov, token, admin, voter1, _voter2, _voter3) = setup_contracts(&env);
+    
+    // Create proposal at ledger sequence S
+    let id = gov.create_proposal(
+        &voter1,
+        &String::from_str(&env, "Snapshot test"),
+        &String::from_str(&env, "Test snapshot voting"),
+        &1_000_000i128,
+        &604_800u64,
+    ).expect("should create proposal");
+    
+    let proposal = gov.get_proposal(id).expect("should get proposal");
+    let snapshot_ledger = proposal.snapshot_ledger;
+    
+    // Verify voter1 has 3M tokens at snapshot
+    assert_eq!(token.balance(&voter1), 3_000_000i128);
+    
+    // Now mint new tokens to voter1 (simulating post-creation accumulation)
+    token.mint(&admin, &voter1, &5_000_000i128);
+    assert_eq!(token.balance(&voter1), 8_000_000i128);
+    
+    // Vote should only count 3M (balance at snapshot), not 8M
+    gov.cast_vote(&voter1, &id, &Vote::Yes).expect("voter1 votes");
+    
+    let proposal = gov.get_proposal(id).expect("should get proposal");
+    // Voting power should be from snapshot (3M), not current balance (8M)
+    assert_eq!(proposal.votes_yes, 3_000_000i128);
+}
+
+#[test]
+fn test_snapshot_voting_fixed_at_proposal_creation() {
+    let env = Env::default();
+    let (gov, token, admin, voter1, voter2, _voter3) = setup_contracts(&env);
+    
+    // Initial state: voter1 has 3M, voter2 has 2M
+    assert_eq!(token.balance(&voter1), 3_000_000i128);
+    assert_eq!(token.balance(&voter2), 2_000_000i128);
+    
+    // Create proposal
+    let id = gov.create_proposal(
+        &voter1,
+        &String::from_str(&env, "Snapshot fixed test"),
+        &String::from_str(&env, "Voting power should be fixed"),
+        &1_000_000i128,
+        &604_800u64,
+    ).expect("should create proposal");
+    
+    // Transfer tokens from voter1 to voter2
+    token.transfer(&voter1, &voter2, &2_000_000i128).expect("transfer tokens");
+    assert_eq!(token.balance(&voter1), 1_000_000i128);
+    assert_eq!(token.balance(&voter2), 4_000_000i128);
+    
+    // voter1 votes with the old balance (3M from snapshot, not 1M current)
+    gov.cast_vote(&voter1, &id, &Vote::Yes).expect("voter1 votes");
+    
+    // voter2 votes with the old balance (2M from snapshot, not 4M current)
+    gov.cast_vote(&voter2, &id, &Vote::Yes).expect("voter2 votes");
+    
+    let proposal = gov.get_proposal(id).expect("should get proposal");
+    // Total votes should be 3M + 2M (snapshot), not 1M + 4M (current)
+    assert_eq!(proposal.votes_yes, 5_000_000i128);
+}

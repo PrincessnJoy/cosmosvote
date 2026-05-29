@@ -40,6 +40,8 @@ pub enum ContractError {
     NotAdmin            = 30,
     InvalidNewAdmin     = 31,
     QuorumUpdateNotAllowed = 32,
+    NoPendingAdmin      = 33,
+    NotPendingAdmin     = 34,
 
     // Contract state
     ContractPaused      = 40,
@@ -88,6 +90,7 @@ pub struct Proposal {
     pub start_time: u64,
     pub end_time: u64,
     pub state: ProposalState,
+    pub snapshot_ledger: u32,
 }
 
 // ---------------------------------------------------------------------------

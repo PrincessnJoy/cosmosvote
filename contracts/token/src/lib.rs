@@ -12,7 +12,7 @@ mod types;
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, Address, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env, String};
 
 use events::TokenEvents;
 use storage::TokenStorage;
@@ -27,14 +27,20 @@ impl TokenContract {
     // Initialization
     // -----------------------------------------------------------------------
 
-    /// Initialize the token contract.
+    /// Initialize the token contract (SEP-41 compatible).
     ///
     /// * `admin`          – receives initial supply and admin privileges
     /// * `initial_supply` – total tokens minted to admin
+    /// * `name`           – human-readable name (e.g., "CosmosVote Token")
+    /// * `symbol`         – ticker symbol (e.g., "VOTE")
+    /// * `decimals`       – number of decimal places (e.g., 7 for Stellar)
     pub fn initialize(
         env: Env,
         admin: Address,
         initial_supply: i128,
+        name: String,
+        symbol: String,
+        decimals: u32,
     ) -> Result<(), ContractError> {
         if TokenStorage::is_initialized(&env) {
             return Err(ContractError::AlreadyInitialized);
@@ -43,6 +49,9 @@ impl TokenContract {
         TokenStorage::set_admin(&env, &admin);
         TokenStorage::set_total_supply(&env, initial_supply);
         TokenStorage::set_balance(&env, &admin, initial_supply);
+        TokenStorage::set_name(&env, &name);
+        TokenStorage::set_symbol(&env, &symbol);
+        TokenStorage::set_decimals(&env, decimals);
         TokenStorage::set_initialized(&env);
         TokenStorage::set_version(&env, (1, 0, 0));
 
@@ -77,6 +86,21 @@ impl TokenContract {
 
     pub fn version(env: Env) -> (u32, u32, u32) {
         TokenStorage::version(&env)
+    }
+
+    /// Return the token name (SEP-41).
+    pub fn name(env: Env) -> String {
+        TokenStorage::name(&env)
+    }
+
+    /// Return the token symbol (SEP-41).
+    pub fn symbol(env: Env) -> String {
+        TokenStorage::symbol(&env)
+    }
+
+    /// Return the number of decimal places (SEP-41).
+    pub fn decimals(env: Env) -> u32 {
+        TokenStorage::decimals(&env)
     }
 
     // -----------------------------------------------------------------------
@@ -205,6 +229,28 @@ impl TokenContract {
         TokenStorage::set_balance(&env, &from, bal - amount);
 
         TokenEvents::burned(&env, &admin, &from, amount);
+        Ok(())
+    }
+
+    /// Burn your own tokens. Owner only.
+    pub fn burn_self(
+        env: Env,
+        owner: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        owner.require_auth();
+        Self::validate_amount(amount)?;
+
+        let bal = TokenStorage::balance(&env, &owner);
+        if bal < amount {
+            return Err(ContractError::InsufficientBalance);
+        }
+
+        let supply = TokenStorage::total_supply(&env);
+        TokenStorage::set_total_supply(&env, supply - amount);
+        TokenStorage::set_balance(&env, &owner, bal - amount);
+
+        TokenEvents::burned(&env, &owner, &owner, amount);
         Ok(())
     }
 
