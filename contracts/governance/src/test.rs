@@ -377,7 +377,62 @@ fn test_cancel_non_admin_fails() {
 fn test_transfer_admin() {
     let env = Env::default();
     let (gov, _, admin, voter, _) = setup(&env);
+    
+    // Step 1: Transfer admin initiates two-step transfer
     gov.transfer_admin(&admin, &voter);
+    
+    // Admin should still be the old admin
+    assert_eq!(gov.admin(), admin);
+    
+    // Pending admin should be the voter
+    assert_eq!(gov.pending_admin(), Some(voter.clone()));
+}
+
+#[test]
+fn test_accept_admin() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    
+    // Step 1: Transfer admin initiates two-step transfer
+    gov.transfer_admin(&admin, &voter);
+    
+    // Step 2: New admin accepts the transfer
+    gov.accept_admin(&voter);
+    
+    // Admin should now be the voter
+    assert_eq!(gov.admin(), voter);
+    
+    // Pending admin should be cleared
+    assert_eq!(gov.pending_admin(), None);
+}
+
+#[test]
+fn test_accept_admin_fails_for_non_pending() {
+    let env = Env::default();
+    let (gov, _, admin, voter, voter2) = setup(&env);
+    
+    // Try to accept admin when not pending
+    let result = gov.try_accept_admin(&voter2);
+    assert_eq!(result, Err(Ok(ContractError::NotPendingAdmin)));
+}
+
+#[test]
+fn test_transfer_admin_prevents_accidental_loss() {
+    let env = Env::default();
+    let (gov, _, admin, voter, voter2) = setup(&env);
+    
+    // Transfer admin to voter
+    gov.transfer_admin(&admin, &voter);
+    
+    // Old admin is still the admin until transfer is accepted
+    assert_eq!(gov.admin(), admin);
+    
+    // Different address cannot accept it
+    let result = gov.try_accept_admin(&voter2);
+    assert_eq!(result, Err(Ok(ContractError::NotPendingAdmin)));
+    
+    // Only the pending admin can accept
+    gov.accept_admin(&voter);
     assert_eq!(gov.admin(), voter);
 }
 
