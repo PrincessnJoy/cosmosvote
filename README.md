@@ -247,11 +247,29 @@ pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), Contract
 
 ## Token Contract Reference
 
+### SEP-41 Compliance
+
+The CosmosVote token contract implements the **Stellar Enhancement Proposal 41 (SEP-41)** standard for token contracts on Soroban. This ensures wallet and explorer compatibility for token discovery, display, and transfer operations.
+
 ### Initialization
 
 ```rust
-pub fn initialize(env: Env, admin: Address, initial_supply: i128) -> Result<(), ContractError>
+pub fn initialize(
+    env: Env,
+    admin: Address,
+    initial_supply: i128,
+    name: String,
+    symbol: String,
+    decimals: u32
+) -> Result<(), ContractError>
 ```
+
+**Parameters:**
+- `admin` — Receives initial supply and admin privileges
+- `initial_supply` — Total tokens minted to admin
+- `name` — Human-readable token name (e.g., "CosmosVote")
+- `symbol` — Ticker symbol (e.g., "VOTE")
+- `decimals` — Number of decimal places (typically 7 for Stellar)
 
 ### Core Operations
 
@@ -261,6 +279,16 @@ pub fn mint(env: Env, admin: Address, to: Address, amount: i128) -> Result<(), C
 pub fn burn(env: Env, admin: Address, from: Address, amount: i128) -> Result<(), ContractError>
 pub fn approve(env: Env, owner: Address, spender: Address, amount: i128) -> Result<(), ContractError>
 pub fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128) -> Result<(), ContractError>
+```
+
+### SEP-41 Query Functions
+
+```rust
+pub fn name(env: Env) -> String              // Token name
+pub fn symbol(env: Env) -> String            // Ticker symbol
+pub fn decimals(env: Env) -> u32             // Decimal places
+pub fn total_supply(env: Env) -> i128        // Total supply
+pub fn balance(env: Env, owner: Address) -> i128  // Account balance
 ```
 
 ---
