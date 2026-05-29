@@ -90,6 +90,7 @@ pub struct Proposal {
     pub start_time: u64,
     pub end_time: u64,
     pub state: ProposalState,
+    pub snapshot_ledger: u32,
 }
 
 // ---------------------------------------------------------------------------

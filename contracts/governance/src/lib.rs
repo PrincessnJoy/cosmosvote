@@ -176,6 +176,7 @@ impl GovernanceContract {
         }
 
         let now = env.ledger().timestamp();
+        let snapshot_ledger = env.ledger().sequence();
         let id = GovernanceStorage::proposal_count(&env);
         let proposal = Proposal {
             id,
@@ -189,6 +190,7 @@ impl GovernanceContract {
             start_time: now,
             end_time: now + duration,
             state: ProposalState::Active,
+            snapshot_ledger,
         };
 
         GovernanceStorage::set_proposal(&env, id, &proposal);
@@ -290,7 +292,7 @@ impl GovernanceContract {
         }
 
         let token = GovernanceStorage::voting_token(&env);
-        let weight = TokenClient::new(&env, &token).balance(&voter);
+        let weight = TokenClient::new(&env, &token).balance_at(&voter, proposal.snapshot_ledger);
         if weight <= 0 {
             return Err(ContractError::NoVotingPower);
         }
