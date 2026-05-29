@@ -442,7 +442,9 @@ impl GovernanceContract {
         Ok(())
     }
 
-    /// Transfer admin privileges. Current admin only.
+    /// Initiate a two-step admin transfer. Current admin only.
+    /// The new admin must call `accept_admin` to complete the transfer.
+    /// This pattern prevents accidental admin loss and supports multisig accounts.
     pub fn transfer_admin(
         env: Env,
         admin: Address,
@@ -451,8 +453,26 @@ impl GovernanceContract {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
-        GovernanceStorage::set_admin(&env, &new_admin);
-        GovernanceEvents::admin_transferred(&env, &admin, &new_admin);
+        GovernanceStorage::set_pending_admin(&env, Some(&new_admin));
+        GovernanceEvents::admin_transfer_initiated(&env, &admin, &new_admin);
+        Ok(())
+    }
+
+    /// Accept admin privileges. Called by the pending admin to complete the transfer.
+    pub fn accept_admin(env: Env, pending_admin: Address) -> Result<(), ContractError> {
+        pending_admin.require_auth();
+
+        let current_pending = GovernanceStorage::pending_admin(&env)
+            .ok_or(ContractError::NoPendingAdmin)?;
+
+        if pending_admin != current_pending {
+            return Err(ContractError::NotPendingAdmin);
+        }
+
+        let previous_admin = GovernanceStorage::admin(&env);
+        GovernanceStorage::set_admin(&env, &pending_admin);
+        GovernanceStorage::set_pending_admin(&env, None);
+        GovernanceEvents::admin_transfer_completed(&env, &previous_admin, &pending_admin);
         Ok(())
     }
 
@@ -485,6 +505,11 @@ impl GovernanceContract {
     /// Return the current admin address.
     pub fn admin(env: Env) -> Address {
         GovernanceStorage::admin(&env)
+    }
+
+    /// Return the pending admin address, if any.
+    pub fn pending_admin(env: Env) -> Option<Address> {
+        GovernanceStorage::pending_admin(&env)
     }
 
     /// Return the contract version.

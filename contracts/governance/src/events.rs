@@ -70,6 +70,20 @@ impl GovernanceEvents {
         );
     }
 
+    pub fn admin_transfer_initiated(env: &Env, current_admin: &Address, pending_admin: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("admint")),
+            (current_admin.clone(), pending_admin.clone()),
+        );
+    }
+
+    pub fn admin_transfer_completed(env: &Env, previous_admin: &Address, new_admin: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("admina")),
+            (previous_admin.clone(), new_admin.clone()),
+        );
+    }
+
     pub fn paused(env: &Env, admin: &Address) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("paused")),
