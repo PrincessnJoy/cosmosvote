@@ -364,10 +364,28 @@ make lint
 ## Testing
 
 ```bash
-make test                          # All tests
-cargo test -p cosmosvote-governance  # Governance only
-cargo test -p cosmosvote-token       # Token only
+make test                          # All unit and integration tests
+make test-verbose                  # Tests with output
+cargo test -p cosmosvote-governance  # Governance contract only
+cargo test -p cosmosvote-token       # Token contract only
+cargo test --test integration_tests  # Integration tests only
 cargo test prop_                   # Property-based tests
+```
+
+### Integration Tests
+
+End-to-end integration tests verify the full proposal lifecycle with real contract interactions between the governance and token contracts. Tests cover:
+
+- **Full pass lifecycle**: Proposal creation → voting → finalization → execution
+- **Full reject lifecycle**: Proposals that fail to meet quorum or vote threshold
+- **Cancel lifecycle**: Admin-cancelled proposals
+- **Voting power**: Verification that voting power correctly reflects token balances
+- **Quorum enforcement**: Proposals are rejected if quorum is not met
+
+Run integration tests with:
+
+```bash
+make test-integration
 ```
 
 ---

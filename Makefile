@@ -27,6 +27,10 @@ test-token:
 test-prop:
 	cargo test prop_ --all --features testutils
 
+## Run integration tests only
+test-integration:
+	cargo test --test integration_tests --features testutils
+
 ## Format code
 fmt:
 	cargo fmt --all
