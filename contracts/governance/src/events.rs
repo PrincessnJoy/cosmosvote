@@ -49,10 +49,10 @@ impl GovernanceEvents {
         );
     }
 
-    pub fn proposal_cancelled(env: &Env, proposal_id: u64, admin: &Address) {
+    pub fn proposal_cancelled(env: &Env, proposal_id: u64, admin: &Address, voter_count: u32) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("cancel")),
-            (proposal_id, admin.clone()),
+            (proposal_id, admin.clone(), voter_count),
         );
     }
 

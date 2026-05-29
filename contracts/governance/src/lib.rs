@@ -191,6 +191,7 @@ impl GovernanceContract {
             end_time: now + duration,
             state: ProposalState::Active,
             snapshot_ledger,
+            voter_count: 0,
         };
 
         GovernanceStorage::set_proposal(&env, id, &proposal);
@@ -308,6 +309,7 @@ impl GovernanceContract {
 
         GovernanceStorage::set_has_voted(&env, proposal_id, &voter, true);
         GovernanceStorage::set_vote_record(&env, proposal_id, &voter, &VoteRecord { vote: vote.clone(), weight });
+        proposal.voter_count += 1;
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
 
         GovernanceEvents::vote_cast(&env, proposal_id, &voter, &vote, weight);
@@ -393,7 +395,33 @@ impl GovernanceContract {
 
         proposal.state = ProposalState::Cancelled;
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
-        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin);
+        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin, proposal.voter_count);
+        Ok(())
+    }
+
+    /// Clean up vote records for a cancelled proposal to reclaim storage.
+    /// Admin provides the list of voter addresses to clean up.
+    /// Only callable on Cancelled proposals.
+    pub fn cleanup_cancelled_proposal(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+        voters: Vec<Address>,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        let proposal = GovernanceStorage::proposal(&env, proposal_id)
+            .ok_or(ContractError::ProposalNotFound)?;
+
+        if proposal.state != ProposalState::Cancelled {
+            return Err(ContractError::ProposalNotActive);
+        }
+
+        for voter in voters.iter() {
+            env.storage().persistent().remove(&storage::PersistentKey::HasVoted(proposal_id, voter.clone()));
+            env.storage().persistent().remove(&storage::PersistentKey::VoteRecord(proposal_id, voter.clone()));
+        }
         Ok(())
     }
 
