@@ -329,6 +329,95 @@ impl GovernanceContract {
             .ok_or(ContractError::VoteNotFound)
     }
 
+    /// Retract a previously cast vote on an active proposal.
+    pub fn retract_vote(env: Env, voter: Address, proposal_id: u64) -> Result<(), ContractError> {
+        voter.require_auth();
+        Self::assert_ready(&env)?;
+
+        let mut proposal = GovernanceStorage::proposal(&env, proposal_id)
+            .ok_or(ContractError::ProposalNotFound)?;
+
+        if proposal.state != ProposalState::Active {
+            return Err(ContractError::ProposalNotActive);
+        }
+        let now = env.ledger().timestamp();
+        if now > proposal.end_time {
+            return Err(ContractError::VotingPeriodEnded);
+        }
+        if !GovernanceStorage::has_voted(&env, proposal_id, &voter) {
+            return Err(ContractError::VoteNotFound);
+        }
+
+        let record = GovernanceStorage::vote_record(&env, proposal_id, &voter)
+            .ok_or(ContractError::VoteNotFound)?;
+
+        match record.vote {
+            Vote::Yes => proposal.votes_yes -= record.weight,
+            Vote::No => proposal.votes_no -= record.weight,
+            Vote::Abstain => proposal.votes_abstain -= record.weight,
+        }
+
+        GovernanceStorage::set_has_voted(&env, proposal_id, &voter, false);
+        env.storage().persistent().remove(&storage::PersistentKey::VoteRecord(proposal_id, voter.clone()));
+        GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
+
+        GovernanceEvents::vote_retracted(&env, proposal_id, &voter, record.weight);
+        Ok(())
+    }
+
+    /// Change a previously cast vote on an active proposal.
+    pub fn change_vote(
+        env: Env,
+        voter: Address,
+        proposal_id: u64,
+        new_vote: Vote,
+    ) -> Result<(), ContractError> {
+        voter.require_auth();
+        Self::assert_ready(&env)?;
+
+        let mut proposal = GovernanceStorage::proposal(&env, proposal_id)
+            .ok_or(ContractError::ProposalNotFound)?;
+
+        if proposal.state != ProposalState::Active {
+            return Err(ContractError::ProposalNotActive);
+        }
+        let now = env.ledger().timestamp();
+        if now > proposal.end_time {
+            return Err(ContractError::VotingPeriodEnded);
+        }
+        if !GovernanceStorage::has_voted(&env, proposal_id, &voter) {
+            return Err(ContractError::VoteNotFound);
+        }
+
+        let record = GovernanceStorage::vote_record(&env, proposal_id, &voter)
+            .ok_or(ContractError::VoteNotFound)?;
+
+        if record.vote == new_vote {
+            return Err(ContractError::VoteAlreadySame);
+        }
+
+        match record.vote {
+            Vote::Yes => proposal.votes_yes -= record.weight,
+            Vote::No => proposal.votes_no -= record.weight,
+            Vote::Abstain => proposal.votes_abstain -= record.weight,
+        }
+        match new_vote {
+            Vote::Yes => proposal.votes_yes = proposal.votes_yes.checked_add(record.weight)
+                .ok_or(ContractError::ArithmeticOverflow)?,
+            Vote::No => proposal.votes_no = proposal.votes_no.checked_add(record.weight)
+                .ok_or(ContractError::ArithmeticOverflow)?,
+            Vote::Abstain => proposal.votes_abstain = proposal.votes_abstain.checked_add(record.weight)
+                .ok_or(ContractError::ArithmeticOverflow)?,
+        }
+
+        let old_vote = record.vote.clone();
+        GovernanceStorage::set_vote_record(&env, proposal_id, &voter, &VoteRecord { vote: new_vote.clone(), weight: record.weight });
+        GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
+
+        GovernanceEvents::vote_changed(&env, proposal_id, &voter, &old_vote, &new_vote, record.weight);
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Finalization & execution
     // -----------------------------------------------------------------------

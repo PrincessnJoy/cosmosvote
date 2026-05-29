@@ -35,6 +35,7 @@ pub enum ContractError {
     NoVotingPower       = 25,
     AdminVoteRestricted = 26,
     VoteNotFound        = 27,
+    VoteAlreadySame     = 28,
 
     // Admin
     NotAdmin            = 30,

@@ -63,6 +63,20 @@ impl GovernanceEvents {
         );
     }
 
+    pub fn vote_retracted(env: &Env, proposal_id: u64, voter: &Address, weight: i128) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("retract")),
+            (proposal_id, voter.clone(), weight),
+        );
+    }
+
+    pub fn vote_changed(env: &Env, proposal_id: u64, voter: &Address, old_vote: &Vote, new_vote: &Vote, weight: i128) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("chgvote")),
+            (proposal_id, voter.clone(), old_vote.clone(), new_vote.clone(), weight),
+        );
+    }
+
     pub fn admin_transferred(env: &Env, old_admin: &Address, new_admin: &Address) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("admin")),
