@@ -29,6 +29,16 @@ pub enum TempKey {
 pub struct TokenStorage;
 
 impl TokenStorage {
+    // Amount of ledgers to extend persistent entries by (30 days)
+    pub const PERSISTENT_BUMP_AMOUNT: u32 = 518_400; // ~30 days @ 5s/ledger
+    pub const PERSISTENT_THRESHOLD: u32 = 17_280;   // ~1 day @ 5s/ledger
+
+    fn bump_persistent_ttl(env: &Env, key: &PersistentKey) {
+        env.storage()
+            .persistent()
+            .extend_ttl(key, Self::PERSISTENT_THRESHOLD, Self::PERSISTENT_BUMP_AMOUNT);
+    }
+
     pub fn is_initialized(env: &Env) -> bool {
         env.storage().instance().has(&InstanceKey::Initialized)
     }
@@ -85,15 +95,16 @@ impl TokenStorage {
     }
 
     pub fn balance(env: &Env, owner: &Address) -> i128 {
-        env.storage()
-            .persistent()
-            .get(&PersistentKey::Balance(owner.clone()))
-            .unwrap_or(0)
+        let key = PersistentKey::Balance(owner.clone());
+        let v = env.storage().persistent().get(&key).unwrap_or(0);
+        // bump TTL on read
+        Self::bump_persistent_ttl(env, &key);
+        v
     }
     pub fn set_balance(env: &Env, owner: &Address, v: i128) {
-        env.storage()
-            .persistent()
-            .set(&PersistentKey::Balance(owner.clone()), &v);
+        let key = PersistentKey::Balance(owner.clone());
+        env.storage().persistent().set(&key, &v);
+        Self::bump_persistent_ttl(env, &key);
     }
 
     pub fn allowance(env: &Env, owner: &Address, spender: &Address) -> i128 {
