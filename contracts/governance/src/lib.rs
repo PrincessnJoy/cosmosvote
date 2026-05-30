@@ -475,6 +475,27 @@ impl GovernanceContract {
         Ok(())
     }
 
+    /// Update the voting token address. Admin only.
+    /// Only allowed when no proposals are currently Active.
+    pub fn update_voting_token(
+        env: Env,
+        admin: Address,
+        new_token: Address,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        let active_count = GovernanceStorage::active_proposal_count(&env);
+        if active_count > 0 {
+            return Err(ContractError::ProposalsStillActive);
+        }
+
+        let old_token = GovernanceStorage::voting_token(&env);
+        GovernanceStorage::set_voting_token(&env, &new_token);
+        GovernanceEvents::voting_token_updated(&env, &old_token, &new_token);
+        Ok(())
+    }
+
     /// Accept admin privileges. Called by the pending admin to complete the transfer.
     pub fn accept_admin(env: Env, pending_admin: Address) -> Result<(), ContractError> {
         pending_admin.require_auth();

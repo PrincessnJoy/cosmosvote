@@ -567,6 +567,31 @@ fn test_get_proposals_by_state() {
 }
 
 // ---------------------------------------------------------------------------
+// Issue #1: Update Voting Token
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_update_voting_token_success() {
+    let env = Env::default();
+    let (gov, _token, admin, _, _) = setup(&env);
+    let new_token_id = env.register(TokenContract, ());
+    
+    gov.update_voting_token(&admin, &new_token_id);
+    assert_eq!(gov.get_config().voting_token, new_token_id);
+}
+
+#[test]
+fn test_update_voting_token_fails_with_active_proposals() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    make_proposal(&gov, &env, &voter);
+    
+    let new_token_id = env.register(TokenContract, ());
+    let result = gov.try_update_voting_token(&admin, &new_token_id);
+    assert_eq!(result, Err(Ok(ContractError::ProposalsStillActive)));
+}
+
+// ---------------------------------------------------------------------------
 // Issue #84: Active Proposal Limit
 // ---------------------------------------------------------------------------
 
