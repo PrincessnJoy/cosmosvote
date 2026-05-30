@@ -26,15 +26,16 @@ pub enum ContractError {
     InsufficientBalance = 18,
     ProposalCooldown    = 19,
     QuorumBelowFloor    = 20,
+    ProposalsStillActive = 21,
 
     // Voting
-    VotingNotStarted    = 21,
-    VotingPeriodEnded   = 22,
-    VotingStillOpen     = 23,
-    AlreadyVoted        = 24,
-    NoVotingPower       = 25,
-    AdminVoteRestricted = 26,
-    VoteNotFound        = 27,
+    VotingNotStarted    = 22,
+    VotingPeriodEnded   = 23,
+    VotingStillOpen     = 24,
+    AlreadyVoted        = 25,
+    NoVotingPower       = 26,
+    AdminVoteRestricted = 27,
+    VoteNotFound        = 28,
 
     // Admin
     NotAdmin            = 30,

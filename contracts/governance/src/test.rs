@@ -28,7 +28,7 @@ fn setup(env: &Env) -> (GovernanceContractClient<'_>, TokenContractClient<'_>, A
 
     let gov_id = env.register(GovernanceContract, ());
     let gov = GovernanceContractClient::new(env, &gov_id);
-    gov.initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
 
     (gov, token, admin, voter, voter2)
 }
@@ -83,7 +83,7 @@ fn test_initialize_double_init_fails() {
     let env = Env::default();
     let (gov, _, admin, _, _) = setup(&env);
     let token_id = env.register(TokenContract, ());
-    let result = gov.try_initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
+    let result = gov.try_initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
     assert_eq!(result, Err(Ok(ContractError::AlreadyInitialized)));
 }
 
@@ -148,6 +148,7 @@ fn test_create_proposal_duration_too_short_fails() {
         &String::from_str(&env, "desc"),
         &1_000_000i128,
         &10u64,
+        &None,
     );
     assert_eq!(result, Err(Ok(ContractError::InvalidDurationRange)));
 }
@@ -563,4 +564,54 @@ fn test_get_proposals_by_state() {
     let cancelled = gov.get_proposals_by_state(&ProposalState::Cancelled, &0, &10);
     assert_eq!(cancelled.len(), 1);
     assert_eq!(cancelled.get(0).unwrap().id, 1);
+}
+
+// ---------------------------------------------------------------------------
+// Issue #1: Update Voting Token
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_update_voting_token_success() {
+    let env = Env::default();
+    let (gov, _token, admin, _, _) = setup(&env);
+    let new_token_id = env.register(TokenContract, ());
+    
+    gov.update_voting_token(&admin, &new_token_id);
+    assert_eq!(gov.get_config().voting_token, new_token_id);
+}
+
+#[test]
+fn test_update_voting_token_fails_with_active_proposals() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    make_proposal(&gov, &env, &voter);
+    
+    let new_token_id = env.register(TokenContract, ());
+    let result = gov.try_update_voting_token(&admin, &new_token_id);
+    assert_eq!(result, Err(Ok(ContractError::ProposalsStillActive)));
+}
+
+// ---------------------------------------------------------------------------
+// Issue #84: Active Proposal Limit
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_active_proposal_limit() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    
+    // Fill up to the limit (50)
+    for _ in 0..50 {
+        make_proposal(&gov, &env, &voter);
+    }
+    
+    // 51st should fail
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Too Many"),
+        &String::from_str(&env, "This should fail"),
+        &1_000_000i128,
+        &3600u64,
+    );
+    assert_eq!(result, Err(Ok(ContractError::ProposalsStillActive)));
 }
