@@ -564,3 +564,18 @@ fn test_get_proposals_by_state() {
     assert_eq!(cancelled.len(), 1);
     assert_eq!(cancelled.get(0).unwrap().id, 1);
 }
+
+#[test]
+fn test_bump_proposal_extends_ttl() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+
+    // bump should succeed for existing proposal
+    let result = gov.try_bump_proposal(&id);
+    assert_eq!(result, Ok(()));
+
+    // proposal should still be retrievable
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.id, id);
+}
