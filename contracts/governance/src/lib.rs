@@ -116,6 +116,7 @@ impl GovernanceContract {
         description: String,
         quorum: i128,
         duration: u64,
+        payload: Option<ExecutionPayload>,
     ) -> Result<u64, ContractError> {
         proposer.require_auth();
         Self::assert_ready(&env)?;
@@ -197,6 +198,7 @@ impl GovernanceContract {
             end_time: now + duration,
             state: ProposalState::Active,
             snapshot_ledger,
+            payload,
         };
 
         GovernanceStorage::set_proposal(&env, id, &proposal);
@@ -382,6 +384,10 @@ impl GovernanceContract {
 
         if proposal.state != ProposalState::Passed {
             return Err(ContractError::ProposalNotPassed);
+        }
+
+        if let Some(payload) = proposal.payload.clone() {
+            env.invoke_contract::<Val>(&payload.contract, &payload.action, payload.args);
         }
 
         proposal.state = ProposalState::Executed;

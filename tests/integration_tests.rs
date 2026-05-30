@@ -112,6 +112,7 @@ fn test_full_proposal_reject_lifecycle() {
         &String::from_str(&env, "Reduce validator rewards"),
         &5_000_000i128,
         &604_800u64,
+        &None,
     ).expect("should create proposal");
     
     // 2. Cast votes (no majority)
@@ -178,6 +179,7 @@ fn test_voting_power_from_token_contract() {
         &String::from_str(&env, "Verify voting power"),
         &1_000_000i128,
         &604_800u64,
+        &None,
     ).expect("should create proposal");
     
     // Cast vote
@@ -311,6 +313,7 @@ fn test_snapshot_voting_fixed_at_proposal_creation() {
         &String::from_str(&env, "Voting power should be fixed"),
         &1_000_000i128,
         &604_800u64,
+        &None,
     ).expect("should create proposal");
     
     // Transfer tokens from voter1 to voter2

@@ -70,12 +70,34 @@ stellar contract invoke \
 
 ## Step 6 — Run the Frontend
 
+The frontend is a React + Vite application that allows you to browse proposals.
+
 ```bash
 cd frontend
+# 1. Install dependencies
 npm install
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env and set:
+# VITE_GOVERNANCE_CONTRACT_ID="CB..."
+# VITE_TOKEN_CONTRACT_ID="CD..."
+# VITE_RPC_URL="http://localhost:8000" (or testnet URL)
+
+# 3. Start development server
 npm run dev
 # Open http://localhost:5173
 ```
+
+### Frontend Configuration
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_GOVERNANCE_CONTRACT_ID` | The ID of the deployed governance contract |
+| `VITE_TOKEN_CONTRACT_ID` | The ID of the deployed token contract |
+| `VITE_RPC_URL` | The Soroban RPC endpoint (local, testnet, or mainnet) |
+| `VITE_NETWORK_PASSPHRASE` | Network passphrase for signing transactions |
+
 
 ## Next Steps
 

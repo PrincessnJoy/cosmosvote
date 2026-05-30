@@ -1,6 +1,6 @@
 //! Governance contract — type definitions and error codes.
 
-use soroban_sdk::{contracterror, contracttype, Address, String};
+use soroban_sdk::{contracterror, contracttype, Address, String, Symbol, Vec, Val};
 
 // ---------------------------------------------------------------------------
 // Error codes
@@ -50,6 +50,9 @@ pub enum ContractError {
 
     // Arithmetic
     ArithmeticOverflow  = 50,
+
+    // Execution
+    ExecutionFailed     = 60,
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +82,14 @@ pub enum ProposalState {
 
 #[contracttype]
 #[derive(Clone, Debug)]
+pub struct ExecutionPayload {
+    pub contract: Address,
+    pub action: Symbol,
+    pub args: Vec<Val>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
 pub struct Proposal {
     pub id: u64,
     pub proposer: Address,
@@ -92,6 +103,7 @@ pub struct Proposal {
     pub end_time: u64,
     pub state: ProposalState,
     pub snapshot_ledger: u32,
+    pub payload: Option<ExecutionPayload>,
 }
 
 // ---------------------------------------------------------------------------

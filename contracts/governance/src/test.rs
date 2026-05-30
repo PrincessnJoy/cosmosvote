@@ -2,10 +2,10 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::Address as _, Address, Env, String, Symbol, vec, Val};
 
 use crate::{
-    types::{ContractError, ProposalState, Vote},
+    types::{ContractError, ProposalState, Vote, ExecutionPayload},
     GovernanceContract, GovernanceContractClient,
 };
 use cosmosvote_token::{TokenContract, TokenContractClient};
@@ -54,6 +54,7 @@ fn make_proposal(gov: &GovernanceContractClient, env: &Env, proposer: &Address) 
         &String::from_str(env, "Upgrade the CosmosVote protocol to v2"),
         &5_000_000i128,
         &604_800u64,
+        &None,
     )
 }
 
@@ -134,6 +135,7 @@ fn test_create_proposal_zero_quorum_fails() {
         &String::from_str(&env, "desc"),
         &0i128,
         &3600u64,
+        &None,
     );
     assert_eq!(result, Err(Ok(ContractError::InvalidQuorum)));
 }
@@ -191,6 +193,7 @@ fn test_create_proposal_below_quorum_floor_fails() {
         &String::from_str(&env, "desc"),
         &50_000i128,
         &3600u64,
+        &None,
     );
     assert_eq!(result, Err(Ok(ContractError::QuorumBelowFloor)));
 }
@@ -314,6 +317,7 @@ fn test_finalise_tie_rejected() {
         &String::from_str(&env, "Equal yes and no votes"),
         &5_000_000i128,
         &3600u64,
+        &None,
     );
     gov.cast_vote(&voter, &id, &Vote::Yes);
     gov.cast_vote(&voter2, &id, &Vote::No);
@@ -592,6 +596,43 @@ fn test_update_voting_token_fails_with_active_proposals() {
 }
 
 // ---------------------------------------------------------------------------
+// Issue #2: Execution Payload
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_execute_with_payload() {
+    let env = Env::default();
+    let (gov, token, admin, voter, _) = setup(&env);
+    
+    // Create a payload that mints tokens to the admin
+    let payload = ExecutionPayload {
+        contract: token.address.clone(),
+        action: Symbol::new(&env, "mint"),
+        args: vec![&env, admin.to_val(), 1000i128.to_val()],
+    };
+    
+    let id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "Mint Tokens"),
+        &String::from_str(&env, "Mint tokens to treasury"),
+        &1_000_000i128,
+        &3600u64,
+        &Some(payload),
+    );
+    
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    let proposal = gov.get_proposal(&id);
+    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    gov.finalise(&id);
+    
+    let admin_bal_before = token.balance(&admin);
+    gov.execute(&admin, &id);
+    
+    assert_eq!(token.balance(&admin), admin_bal_before + 1000);
+    assert_eq!(gov.get_proposal(&id).state, ProposalState::Executed);
+}
+
+// ---------------------------------------------------------------------------
 // Issue #84: Active Proposal Limit
 // ---------------------------------------------------------------------------
 
@@ -612,6 +653,7 @@ fn test_active_proposal_limit() {
         &String::from_str(&env, "This should fail"),
         &1_000_000i128,
         &3600u64,
+        &None,
     );
     assert_eq!(result, Err(Ok(ContractError::ProposalsStillActive)));
 }
