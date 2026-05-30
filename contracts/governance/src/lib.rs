@@ -250,6 +250,14 @@ impl GovernanceContract {
         proposals
     }
 
+    /// Public: bump a proposal's persistent TTL so it survives ledger expiry.
+    /// Anyone may call this to extend a proposal's TTL.
+    pub fn bump_proposal(env: Env, proposal_id: u64) -> Result<(), ContractError> {
+        // reading the proposal via GovernanceStorage::proposal will extend its TTL
+        let _ = GovernanceStorage::proposal(&env, proposal_id).ok_or(ContractError::ProposalNotFound)?;
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Voting
     // -----------------------------------------------------------------------

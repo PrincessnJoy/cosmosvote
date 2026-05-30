@@ -18,7 +18,6 @@ CosmosVote uses Soroban's three storage tiers strategically to minimize costs.
 |-----|------|-------|
 | `Admin` | `Address` | Set once at init |
 | `VotingToken` | `Address` | Set once at init |
-| `ProposalCount` | `u64` | Monotonically increasing |
 | `MinProposalBalance` | `i128` | 0 = no minimum |
 | `ProposalCooldown` | `u64` | 0 = no cooldown |
 | `RestrictAdminVote` | `bool` | — |
@@ -30,6 +29,7 @@ CosmosVote uses Soroban's three storage tiers strategically to minimize costs.
 
 | Key | Type | Notes |
 |-----|------|-------|
+| `ProposalCount` | `u64` | Moved from Instance to avoid contention |
 | `Proposal(id)` | `Proposal` | Full proposal state |
 | `HasVoted(id, voter)` | `bool` | Double-vote guard |
 | `VoteRecord(id, voter)` | `VoteRecord` | Vote type + weight |
