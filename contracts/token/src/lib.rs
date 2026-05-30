@@ -258,8 +258,8 @@ impl TokenContract {
     // Admin
     // -----------------------------------------------------------------------
 
-    /// Transfer admin privileges. Current admin only.
-    pub fn transfer_admin(
+    /// Initiate a two-step admin transfer. Current admin only.
+    pub fn propose_admin(
         env: Env,
         admin: Address,
         new_admin: Address,
@@ -267,8 +267,26 @@ impl TokenContract {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
-        TokenStorage::set_admin(&env, &new_admin);
-        TokenEvents::admin_transferred(&env, &admin, &new_admin);
+        TokenStorage::set_pending_admin(&env, Some(&new_admin));
+        TokenEvents::admin_transfer_proposed(&env, &admin, &new_admin);
+        Ok(())
+    }
+
+    /// Accept admin privileges. Called by the pending admin.
+    pub fn accept_admin(env: Env, pending_admin: Address) -> Result<(), ContractError> {
+        pending_admin.require_auth();
+
+        let current_pending = TokenStorage::pending_admin(&env)
+            .ok_or(ContractError::NoPendingAdmin)?;
+
+        if pending_admin != current_pending {
+            return Err(ContractError::NotPendingAdmin);
+        }
+
+        let previous_admin = TokenStorage::admin(&env);
+        TokenStorage::set_admin(&env, &pending_admin);
+        TokenStorage::set_pending_admin(&env, None);
+        TokenEvents::admin_transfer_accepted(&env, &previous_admin, &pending_admin);
         Ok(())
     }
 

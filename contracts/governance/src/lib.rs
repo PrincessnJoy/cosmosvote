@@ -447,7 +447,7 @@ impl GovernanceContract {
     /// Initiate a two-step admin transfer. Current admin only.
     /// The new admin must call `accept_admin` to complete the transfer.
     /// This pattern prevents accidental admin loss and supports multisig accounts.
-    pub fn transfer_admin(
+    pub fn propose_admin(
         env: Env,
         admin: Address,
         new_admin: Address,
@@ -456,7 +456,7 @@ impl GovernanceContract {
         Self::assert_admin(&env, &admin)?;
 
         GovernanceStorage::set_pending_admin(&env, Some(&new_admin));
-        GovernanceEvents::admin_transfer_initiated(&env, &admin, &new_admin);
+        GovernanceEvents::admin_transfer_proposed(&env, &admin, &new_admin);
         Ok(())
     }
 
@@ -474,7 +474,7 @@ impl GovernanceContract {
         let previous_admin = GovernanceStorage::admin(&env);
         GovernanceStorage::set_admin(&env, &pending_admin);
         GovernanceStorage::set_pending_admin(&env, None);
-        GovernanceEvents::admin_transfer_completed(&env, &previous_admin, &pending_admin);
+        GovernanceEvents::admin_transfer_accepted(&env, &previous_admin, &pending_admin);
         Ok(())
     }
 

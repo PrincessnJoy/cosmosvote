@@ -6,6 +6,7 @@ use soroban_sdk::{Address, Env, String};
 #[derive(Clone)]
 pub enum InstanceKey {
     Admin,
+    PendingAdmin,
     TotalSupply,
     Initialized,
     Version,
@@ -41,6 +42,16 @@ impl TokenStorage {
     }
     pub fn set_admin(env: &Env, v: &Address) {
         env.storage().instance().set(&InstanceKey::Admin, v);
+    }
+
+    pub fn pending_admin(env: &Env) -> Option<Address> {
+        env.storage().instance().get(&InstanceKey::PendingAdmin)
+    }
+    pub fn set_pending_admin(env: &Env, v: Option<&Address>) {
+        match v {
+            Some(addr) => env.storage().instance().set(&InstanceKey::PendingAdmin, addr),
+            None => env.storage().instance().remove(&InstanceKey::PendingAdmin),
+        }
     }
 
     pub fn total_supply(env: &Env) -> i128 {
