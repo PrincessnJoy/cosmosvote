@@ -97,4 +97,11 @@ impl GovernanceEvents {
             admin.clone(),
         );
     }
+
+    pub fn voting_token_updated(env: &Env, old_token: &Address, new_token: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("token")),
+            (old_token.clone(), new_token.clone()),
+        );
+    }
 }

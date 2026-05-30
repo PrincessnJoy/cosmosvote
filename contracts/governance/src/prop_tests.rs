@@ -36,15 +36,17 @@ proptest! {
 
         let gov_id = env.register(GovernanceContract, ());
         let gov = GovernanceContractClient::new(&env, &gov_id);
-        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
 
         let id = gov.create_proposal(
             &voter,
             &String::from_str(&env, "Prop"),
             &String::from_str(&env, "Description"),
-            &(yes_weight / 2),
+            &quorum,
             &3600u64,
+            &None,
         );
+
 
         gov.cast_vote(&voter, &id, &Vote::Yes);
         prop_assert!(gov.has_voted(&id, &voter));
@@ -78,7 +80,7 @@ proptest! {
 
         let gov_id = env.register(GovernanceContract, ());
         let gov = GovernanceContractClient::new(&env, &gov_id);
-        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
 
         let id = gov.create_proposal(
             &voter_a,
@@ -117,7 +119,7 @@ proptest! {
 
         let gov_id = env.register(GovernanceContract, ());
         let gov = GovernanceContractClient::new(&env, &gov_id);
-        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
 
         let quorum = yes_weight + no_weight - 1;
         let id = gov.create_proposal(
@@ -126,6 +128,7 @@ proptest! {
             &String::from_str(&env, "Should pass"),
             &quorum,
             &3600u64,
+            &None,
         );
 
         gov.cast_vote(&voter_yes, &id, &Vote::Yes);

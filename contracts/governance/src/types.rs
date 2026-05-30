@@ -1,6 +1,6 @@
 //! Governance contract — type definitions and error codes.
 
-use soroban_sdk::{contracterror, contracttype, Address, String};
+use soroban_sdk::{contracterror, contracttype, Address, String, Symbol, Vec, Val};
 
 // ---------------------------------------------------------------------------
 // Error codes
@@ -26,15 +26,16 @@ pub enum ContractError {
     InsufficientBalance = 18,
     ProposalCooldown    = 19,
     QuorumBelowFloor    = 20,
+    ProposalsStillActive = 21,
 
     // Voting
-    VotingNotStarted    = 21,
-    VotingPeriodEnded   = 22,
-    VotingStillOpen     = 23,
-    AlreadyVoted        = 24,
-    NoVotingPower       = 25,
-    AdminVoteRestricted = 26,
-    VoteNotFound        = 27,
+    VotingNotStarted    = 22,
+    VotingPeriodEnded   = 23,
+    VotingStillOpen     = 24,
+    AlreadyVoted        = 25,
+    NoVotingPower       = 26,
+    AdminVoteRestricted = 27,
+    VoteNotFound        = 28,
 
     // Admin
     NotAdmin            = 30,
@@ -49,6 +50,9 @@ pub enum ContractError {
 
     // Arithmetic
     ArithmeticOverflow  = 50,
+
+    // Execution
+    ExecutionFailed     = 60,
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +82,14 @@ pub enum ProposalState {
 
 #[contracttype]
 #[derive(Clone, Debug)]
+pub struct ExecutionPayload {
+    pub contract: Address,
+    pub action: Symbol,
+    pub args: Vec<Val>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
 pub struct Proposal {
     pub id: u64,
     pub proposer: Address,
@@ -91,6 +103,7 @@ pub struct Proposal {
     pub end_time: u64,
     pub state: ProposalState,
     pub snapshot_ledger: u32,
+    pub payload: Option<ExecutionPayload>,
 }
 
 // ---------------------------------------------------------------------------
