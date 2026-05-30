@@ -27,6 +27,11 @@
 **Mitigations:** Admin must deploy a trustworthy token; token address is immutable after init.  
 **Residual Risk:** High (external dependency — accepted)
 
+### T6 — Frontend XSS Attacker
+**Goal:** Inject malicious scripts to hijack wallet sessions or sign unauthorized transactions.
+**Mitigations:** Strict Content Security Policy (CSP), unsafe-inline scripts disallowed, connect-src limited to trusted RPCs. See [CSP Documentation](./csp.md).
+**Residual Risk:** Low
+
 ## Security Properties
 
 | Property | Implementation |
@@ -37,3 +42,4 @@
 | Arithmetic safety | `checked_add` on all vote accumulation |
 | Finalization correctness | Pass condition evaluated atomically |
 | Emergency response | Admin pause blocks all state-changing ops |
+| Frontend safety | Strict CSP headers in dev and production |
