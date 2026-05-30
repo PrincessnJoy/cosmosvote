@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::Address as _, Address, Env, IntoVal, String};
 
 use crate::{
     types::{ContractError, ProposalState, Vote},
@@ -463,6 +463,18 @@ fn test_update_quorum() {
     gov.update_quorum(&admin, &id, &1_000_000i128);
     let proposal = gov.get_proposal(&id);
     assert_eq!(proposal.quorum, 1_000_000);
+
+    // Verify event
+    let events = env.events().all();
+    let last_event = events.last().unwrap();
+    assert_eq!(
+        last_event,
+        (
+            gov.address.clone(),
+            (soroban_sdk::symbol_short!("gov"), soroban_sdk::symbol_short!("quorum")).into_val(&env),
+            (id, 5_000_000i128, 1_000_000i128).into_val(&env)
+        )
+    );
 }
 
 #[test]
