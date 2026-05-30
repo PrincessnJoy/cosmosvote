@@ -17,7 +17,6 @@ pub enum InstanceKey {
     Admin,
     PendingAdmin,
     VotingToken,
-    ProposalCount,
     MinProposalBalance,
     ProposalCooldown,
     MinQuorumBps,
@@ -33,6 +32,7 @@ pub enum PersistentKey {
     Proposal(u64),
     HasVoted(u64, Address),
     VoteRecord(u64, Address),
+    ProposalCount,
     LastProposal(Address),
 }
 
@@ -77,13 +77,6 @@ impl GovernanceStorage {
     }
     pub fn set_voting_token(env: &Env, v: &Address) {
         env.storage().instance().set(&InstanceKey::VotingToken, v);
-    }
-
-    pub fn proposal_count(env: &Env) -> u64 {
-        env.storage().instance().get(&InstanceKey::ProposalCount).unwrap_or(0)
-    }
-    pub fn set_proposal_count(env: &Env, v: u64) {
-        env.storage().instance().set(&InstanceKey::ProposalCount, &v);
     }
 
     pub fn min_proposal_balance(env: &Env) -> i128 {
@@ -195,6 +188,20 @@ impl GovernanceStorage {
     }
     pub fn set_last_proposal_time(env: &Env, proposer: &Address, v: u64) {
         let key = PersistentKey::LastProposal(proposer.clone());
+        env.storage().persistent().set(&key, &v);
+        Self::bump_persistent_ttl(env, &key);
+    }
+
+    // Proposal count persisted to persistent storage to avoid instance write contention
+    pub fn proposal_count(env: &Env) -> u64 {
+        let key = PersistentKey::ProposalCount;
+        let v = env.storage().persistent().get(&key).unwrap_or(0u64);
+        // bump TTL on read
+        Self::bump_persistent_ttl(env, &key);
+        v
+    }
+    pub fn set_proposal_count(env: &Env, v: u64) {
+        let key = PersistentKey::ProposalCount;
         env.storage().persistent().set(&key, &v);
         Self::bump_persistent_ttl(env, &key);
     }
