@@ -134,6 +134,12 @@ impl GovernanceContract {
             return Err(ContractError::InvalidDurationRange);
         }
 
+        // Global rate limit: max 50 active proposals
+        let active_count = GovernanceStorage::active_proposal_count(&env);
+        if active_count >= 50 {
+            return Err(ContractError::ProposalsStillActive);
+        }
+
         let token = GovernanceStorage::voting_token(&env);
         let token_client = TokenClient::new(&env, &token);
         let total_supply = token_client.total_supply();
@@ -195,6 +201,7 @@ impl GovernanceContract {
 
         GovernanceStorage::set_proposal(&env, id, &proposal);
         GovernanceStorage::set_proposal_count(&env, id + 1);
+        GovernanceStorage::set_active_proposal_count(&env, active_count + 1);
         GovernanceStorage::set_last_proposal_time(&env, &proposer, now);
 
         GovernanceEvents::proposal_created(&env, id, &proposer, &title, quorum, now + duration);
@@ -357,6 +364,10 @@ impl GovernanceContract {
         proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
 
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
+        let active_count = GovernanceStorage::active_proposal_count(&env);
+        if active_count > 0 {
+            GovernanceStorage::set_active_proposal_count(&env, active_count - 1);
+        }
         GovernanceEvents::proposal_finalized(&env, proposal_id, &proposal.state);
         Ok(())
     }
@@ -393,6 +404,10 @@ impl GovernanceContract {
 
         proposal.state = ProposalState::Cancelled;
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
+        let active_count = GovernanceStorage::active_proposal_count(&env);
+        if active_count > 0 {
+            GovernanceStorage::set_active_proposal_count(&env, active_count - 1);
+        }
         GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin);
         Ok(())
     }
