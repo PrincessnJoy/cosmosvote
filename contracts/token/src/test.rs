@@ -174,19 +174,39 @@ fn test_mint_non_admin_fails() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_transfer_admin() {
+fn test_admin_transfer_happy_path() {
     let env = Env::default();
     let (token, admin, user) = setup(&env);
-    token.transfer_admin(&admin, &user);
-    assert_eq!(token.admin(), user);
+    
+    // Step 1: Propose
+    token.propose_admin(&admin, &user);
+    assert_eq!(token.admin(), admin); // Still old admin
+    
+    // Step 2: Accept
+    token.accept_admin(&user);
+    assert_eq!(token.admin(), user); // Now new admin
 }
 
 #[test]
-fn test_transfer_admin_non_admin_fails() {
+fn test_propose_admin_non_admin_fails() {
     let env = Env::default();
     let (token, _, user) = setup(&env);
-    let result = token.try_transfer_admin(&user, &Address::generate(&env));
+    let result = token.try_propose_admin(&user, &Address::generate(&env));
     assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
+fn test_accept_admin_not_pending_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    
+    let result = token.try_accept_admin(&user);
+    assert_eq!(result, Err(Ok(ContractError::NoPendingAdmin)));
+
+    token.propose_admin(&admin, &user);
+    let random = Address::generate(&env);
+    let result = token.try_accept_admin(&random);
+    assert_eq!(result, Err(Ok(ContractError::NotPendingAdmin)));
 }
 
 // ---------------------------------------------------------------------------

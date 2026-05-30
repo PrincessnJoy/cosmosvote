@@ -10,6 +10,8 @@ pub enum ContractError {
     NotInitialized      = 2,
     NotAdmin            = 10,
     InvalidNewAdmin     = 11,
+    NoPendingAdmin      = 12,
+    NotPendingAdmin     = 13,
     InvalidAmount       = 20,
     InsufficientBalance = 21,
     AllowanceExceeded   = 22,
