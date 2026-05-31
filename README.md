@@ -362,10 +362,27 @@ Key variables: `NETWORK`, `STELLAR_RPC_URL`, `STELLAR_SECRET_KEY`, `GOVERNANCE_C
 
 ### With Docker
 
+The Dockerfile uses a **multi-stage build** to keep the final image small and free of build tooling:
+
+| Stage | Base image | Purpose |
+|-------|-----------|---------|
+| `builder` | `rust:1.75-slim-bookworm` (pinned digest) | Compiles WASM binaries |
+| `runtime` | `debian:bookworm-slim` (pinned digest) | Ships only the `.wasm` artifacts |
+
+Both base images are pinned to a specific digest for reproducibility.
+
 ```bash
+# Start a dev shell (builder stage — full Rust toolchain)
 docker compose up
 docker compose run --rm dev make test
 docker compose run --rm dev make build
+
+# Build the minimal runtime image (WASM artifacts only)
+docker compose --profile artifacts build artifacts
+
+# Or build directly with Docker
+docker build --target builder -t cosmosvote:builder .   # dev / CI
+docker build --target runtime -t cosmosvote:runtime .   # production artifact image
 ```
 
 ### Without Docker
