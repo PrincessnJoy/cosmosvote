@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: builder          # full toolchain for development
     volumes:
       - .:/app
       - cargo-cache:/usr/local/cargo/registry
@@ -15,6 +16,14 @@ services:
     depends_on:
       - stellar-node
     command: bash
+
+  artifacts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime          # minimal image with WASM artifacts only
+    profiles:
+      - artifacts
 
   stellar-node:
     image: stellar/quickstart:latest
