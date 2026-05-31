@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, String};
 
 use crate::{GovernanceContract, GovernanceContractClient};
 
@@ -31,7 +31,13 @@ pub fn setup<'a>(env: &'a Env) -> TestEnv<'a> {
     // Deploy token
     let token_id = env.register(TokenContract, ());
     let token = TokenContractClient::new(env, &token_id);
-    token.initialize(&admin, &1_000_000_000i128);
+    token.initialize(
+        &admin,
+        &1_000_000_000i128,
+        &soroban_sdk::String::from_str(env, "CosmosVote"),
+        &soroban_sdk::String::from_str(env, "VOTE"),
+        &7u32,
+    );
 
     // Fund voters
     token.mint(&admin, &voter_a, &10_000_000i128);
