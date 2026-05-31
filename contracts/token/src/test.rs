@@ -169,6 +169,32 @@ fn test_mint_non_admin_fails() {
     assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
 }
 
+#[test]
+fn test_burn_reduces_total_supply() {
+    let env = Env::default();
+    let (token, admin, _) = setup(&env);
+    token.burn(&admin, &admin, &200_000_000i128);
+    assert_eq!(token.total_supply(), 800_000_000);
+    assert_eq!(token.balance(&admin), 800_000_000);
+}
+
+#[test]
+fn test_burn_insufficient_balance_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let result = token.try_burn(&admin, &user, &1i128);
+    assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
+}
+
+#[test]
+fn test_burn_non_admin_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    token.transfer(&admin, &user, &1_000_000i128);
+    let result = token.try_burn(&user, &user, &1_000_000i128);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
 // ---------------------------------------------------------------------------
 // Admin transfer
 // ---------------------------------------------------------------------------
