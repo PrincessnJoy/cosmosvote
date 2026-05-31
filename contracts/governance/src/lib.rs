@@ -334,7 +334,16 @@ impl GovernanceContract {
     // -----------------------------------------------------------------------
 
     /// Finalize a proposal after its voting period ends.
-    /// Anyone may call this.
+    ///
+    /// This function is permissionless — anyone may call it. It is safe against
+    /// spam because the `ProposalNotActive` guard makes every call after the
+    /// first a cheap no-op: the proposal state is read, the non-`Active` branch
+    /// is taken, and `Err(ProposalNotActive)` is returned without writing any
+    /// storage. No state corruption is possible.
+    ///
+    /// **Idempotency guarantee:** only the *first* successful call transitions
+    /// the proposal to `Passed` or `Rejected` and emits the `proposal_finalized`
+    /// event. Subsequent calls return `Err(ProposalNotActive)` immediately.
     pub fn finalise(env: Env, proposal_id: u64) -> Result<(), ContractError> {
         let mut proposal = GovernanceStorage::proposal(&env, proposal_id)
             .ok_or(ContractError::ProposalNotFound)?;

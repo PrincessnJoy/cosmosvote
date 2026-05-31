@@ -35,6 +35,11 @@ impl GovernanceEvents {
         );
     }
 
+    /// Emitted exactly once per proposal when `finalise()` transitions it from
+    /// `Active` to `Passed` or `Rejected`. Off-chain indexers should deduplicate
+    /// on `(proposal_id, "final")` — the idempotency guard in `finalise()`
+    /// prevents a second emission, but indexers processing historical ledgers
+    /// should still treat duplicate events as no-ops.
     pub fn proposal_finalized(env: &Env, proposal_id: u64, state: &ProposalState) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("final")),
