@@ -91,6 +91,7 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 - **Token-weighted voting** — vote weight equals the voter's governance token balance
 - **Yes / No / Abstain** — three-way vote with quorum and majority enforcement
 - **Double-vote prevention** — each address can vote exactly once per proposal
+- **Vote delegation** — token holders can delegate voting power to a representative without transferring tokens
 - **Lifecycle management** — Active → Passed/Rejected → Executed, or Cancelled by admin
 - **On-chain events** — every action emits a verifiable event for off-chain indexers
 - **Admin controls** — pause/unpause, update quorum, transfer admin privileges
@@ -291,6 +292,17 @@ pub fn decimals(env: Env) -> u32             // Decimal places
 pub fn total_supply(env: Env) -> i128        // Total supply
 pub fn balance(env: Env, owner: Address) -> i128  // Account balance
 ```
+
+### Delegation
+
+```rust
+pub fn delegate(env: Env, owner: Address, delegate_to: Address) -> Result<(), ContractError>
+pub fn undelegate(env: Env, owner: Address) -> Result<(), ContractError>
+pub fn get_delegation(env: Env, owner: Address) -> Option<Address>
+pub fn get_delegated_weight(env: Env, voter: Address, delegators: Vec<Address>) -> i128
+```
+
+See [docs/delegation.md](./docs/delegation.md) for the full delegation model and behavior.
 
 ---
 

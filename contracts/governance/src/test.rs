@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, String};
 
 use crate::{
     types::{ContractError, ProposalState, Vote},
@@ -22,13 +22,19 @@ fn setup(env: &Env) -> (GovernanceContractClient<'_>, TokenContractClient<'_>, A
 
     let token_id = env.register(TokenContract, ());
     let token = TokenContractClient::new(env, &token_id);
-    token.initialize(&admin, &1_000_000_000i128);
+    token.initialize(
+        &admin,
+        &1_000_000_000i128,
+        &String::from_str(env, "CosmosVote"),
+        &String::from_str(env, "VOTE"),
+        &7u32,
+    );
     token.mint(&admin, &voter, &10_000_000i128);
     token.mint(&admin, &voter2, &5_000_000i128);
 
     let gov_id = env.register(GovernanceContract, ());
     let gov = GovernanceContractClient::new(env, &gov_id);
-    gov.initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
 
     (gov, token, admin, voter, voter2)
 }
@@ -68,11 +74,17 @@ fn test_initialize_success() {
     let admin = Address::generate(&env);
     let token_id = env.register(TokenContract, ());
     let token = TokenContractClient::new(&env, &token_id);
-    token.initialize(&admin, &1_000_000_000i128);
+    token.initialize(
+        &admin,
+        &1_000_000_000i128,
+        &String::from_str(&env, "CosmosVote"),
+        &String::from_str(&env, "VOTE"),
+        &7u32,
+    );
 
     let gov_id = env.register(GovernanceContract, ());
     let gov = GovernanceContractClient::new(&env, &gov_id);
-    gov.initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
 
     assert_eq!(gov.admin(), admin);
     assert_eq!(gov.proposal_count(), 0);
@@ -83,7 +95,7 @@ fn test_initialize_double_init_fails() {
     let env = Env::default();
     let (gov, _, admin, _, _) = setup(&env);
     let token_id = env.register(TokenContract, ());
-    let result = gov.try_initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
+    let result = gov.try_initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
     assert_eq!(result, Err(Ok(ContractError::AlreadyInitialized)));
 }
 
@@ -175,7 +187,13 @@ fn test_create_proposal_below_quorum_floor_fails() {
 
     let token_id = env.register(TokenContract, ());
     let token = TokenContractClient::new(&env, &token_id);
-    token.initialize(&admin, &1_000_000i128); // 1M supply
+    token.initialize(
+        &admin,
+        &1_000_000i128,
+        &String::from_str(&env, "CosmosVote"),
+        &String::from_str(&env, "VOTE"),
+        &7u32,
+    ); // 1M supply
     token.mint(&admin, &voter, &1_000_000i128);
 
     let gov_id = env.register(GovernanceContract, ());
@@ -411,7 +429,10 @@ fn test_accept_admin_fails_for_non_pending() {
     let env = Env::default();
     let (gov, _, admin, voter, voter2) = setup(&env);
     
-    // Try to accept admin when not pending
+    // Initiate transfer to voter
+    gov.transfer_admin(&admin, &voter);
+    
+    // voter2 is not the pending admin — should fail with NotPendingAdmin
     let result = gov.try_accept_admin(&voter2);
     assert_eq!(result, Err(Ok(ContractError::NotPendingAdmin)));
 }
@@ -488,7 +509,7 @@ fn test_get_nonexistent_proposal_fails() {
     let env = Env::default();
     let (gov, _, _, _, _) = setup(&env);
     let result = gov.try_get_proposal(&999u64);
-    assert_eq!(result, Err(Ok(ContractError::ProposalNotFound)));
+    assert!(matches!(result, Err(Ok(ContractError::ProposalNotFound))));
 }
 
 // ---------------------------------------------------------------------------
@@ -563,4 +584,55 @@ fn test_get_proposals_by_state() {
     let cancelled = gov.get_proposals_by_state(&ProposalState::Cancelled, &0, &10);
     assert_eq!(cancelled.len(), 1);
     assert_eq!(cancelled.get(0).unwrap().id, 1);
+}
+
+// ---------------------------------------------------------------------------
+// Delegation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_delegator_cannot_vote_directly() {
+    let env = Env::default();
+    let (gov, token, _, voter, voter2) = setup(&env);
+
+    // voter delegates to voter2
+    token.delegate(&voter, &voter2);
+
+    let id = make_proposal(&gov, &env, &voter2);
+
+    // voter has delegated away — cannot vote directly
+    let result = gov.try_cast_vote(&voter, &id, &Vote::Yes);
+    assert_eq!(result, Err(Ok(ContractError::NoVotingPower)));
+}
+
+#[test]
+fn test_delegate_can_vote_with_own_weight() {
+    let env = Env::default();
+    let (gov, token, _, voter, voter2) = setup(&env);
+
+    // voter delegates to voter2
+    token.delegate(&voter, &voter2);
+
+    let id = make_proposal(&gov, &env, &voter2);
+
+    // voter2 votes with their own balance (5M)
+    gov.cast_vote(&voter2, &id, &Vote::Yes);
+    let record = gov.get_vote(&id, &voter2);
+    assert_eq!(record.weight, 5_000_000);
+}
+
+#[test]
+fn test_undelegate_restores_voting_power() {
+    let env = Env::default();
+    let (gov, token, _, voter, voter2) = setup(&env);
+
+    // voter delegates then undelegates
+    token.delegate(&voter, &voter2);
+    token.undelegate(&voter);
+
+    let id = make_proposal(&gov, &env, &voter2);
+
+    // voter can now vote again
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    assert!(gov.has_voted(&id, &voter));
 }
