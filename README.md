@@ -356,6 +356,30 @@ cp .env.example .env
 
 Key variables: `NETWORK`, `STELLAR_RPC_URL`, `STELLAR_SECRET_KEY`, `GOVERNANCE_CONTRACT_ID`, `TOKEN_CONTRACT_ID`.
 
+### `restrict_admin_vote` flag
+
+The `restrict_admin_vote` parameter passed to `initialize` controls a narrow voting restriction on the admin:
+
+- **`false` (default):** The admin can vote on any proposal, including ones they created.
+- **`true`:** The admin is blocked from voting **only on proposals that the admin themselves created**. The admin can still vote freely on proposals created by other addresses.
+
+This is intentionally scoped — it prevents a conflict of interest when the admin is also the proposer, without removing the admin's ability to participate in governance generally.
+
+> **Note:** This behavior is tracked in issue #14, which documents the ambiguity in the original specification. The current implementation blocks admin voting only when `voter == admin && proposal.proposer == admin`.
+
+**Example:**
+
+```rust
+// Admin creates a proposal — admin CANNOT vote on it when restrict_admin_vote = true
+gov.initialize(&admin, &token_id, &0, &0, &0, &true);
+let id = gov.create_proposal(&admin, ...);
+gov.cast_vote(&admin, &id, &Vote::Yes); // → Err(AdminVoteRestricted)
+
+// Admin votes on a proposal created by someone else — this is ALLOWED
+let id2 = gov.create_proposal(&other_user, ...);
+gov.cast_vote(&admin, &id2, &Vote::Yes); // → Ok(())
+```
+
 ---
 
 ## Development
