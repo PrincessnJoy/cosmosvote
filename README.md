@@ -162,7 +162,8 @@ cosmosvote/
 │   ├── lifecycle.md
 │   ├── storage.md
 │   ├── errors.md
-│   └── faq.md
+│   ├── faq.md
+│   └── runbook.md
 │
 ├── scripts/
 │   ├── deploy.sh                     # Deploy to local/testnet
@@ -430,6 +431,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). Quick checklist:
 - [SEP-41 Token Standard](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md)
 - [Architecture Decision Records](./docs/adr/)
 - [Security Documentation](./docs/security/)
+- [Operational Runbook](./docs/runbook.md)
 
 ---
 
