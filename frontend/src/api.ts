@@ -62,7 +62,18 @@ export async function fetchProposal(id: number): Promise<Proposal> {
 
 export async function fetchAllProposals(): Promise<Proposal[]> {
   const count = await fetchProposalCount();
-  return Promise.all(Array.from({ length: count }, (_, i) => fetchProposal(i)));
+  const results = await Promise.allSettled(
+    Array.from({ length: count }, (_, i) => fetchProposal(i))
+  );
+  return results
+    .filter((r): r is PromiseFulfilledResult<Proposal> => {
+      if (r.status === 'rejected') {
+        console.error('[fetchAllProposals] failed to fetch proposal:', r.reason);
+        return false;
+      }
+      return true;
+    })
+    .map(r => r.value);
 }
 
 export async function fetchHasVoted(proposalId: number, voter: string): Promise<boolean> {
