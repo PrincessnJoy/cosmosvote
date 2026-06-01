@@ -430,6 +430,8 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). Quick checklist:
 - [SEP-41 Token Standard](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md)
 - [Architecture Decision Records](./docs/adr/)
 - [Security Documentation](./docs/security/)
+- [Governance API Reference](./docs/api/governance.md)
+- [Token API Reference](./docs/api/token.md)
 
 ---
 
