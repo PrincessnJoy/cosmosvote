@@ -174,6 +174,17 @@ cosmosvote/
 │   ├── testnet.toml
 │   └── mainnet.toml
 │
+├── notification-service/             # Off-chain notification service
+│   ├── src/
+│   │   ├── index.ts                  # CLI entry point
+│   │   ├── watcher.ts                # Horizon event poller
+│   │   ├── notifier.ts               # Email & webhook dispatch
+│   │   ├── subscriptions.ts          # Subscription management
+│   │   └── types.ts                  # Shared types
+│   ├── .env.example
+│   ├── package.json
+│   └── tsconfig.json
+│
 ├── frontend/                         # React + Vite proposal browser
 ├── Cargo.toml                        # Workspace manifest
 ├── Makefile
@@ -430,6 +441,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). Quick checklist:
 - [SEP-41 Token Standard](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md)
 - [Architecture Decision Records](./docs/adr/)
 - [Security Documentation](./docs/security/)
+- [Notification Service](./docs/notification-service.md)
 
 ---
 
