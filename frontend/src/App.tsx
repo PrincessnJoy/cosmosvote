@@ -4,6 +4,7 @@ import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api'
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
+import { useToast } from './components/ToastContext';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
 
@@ -19,6 +20,26 @@ export default function App() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
+  const { notify, dismiss } = useToast();
+
+  async function connect() {
+    const id = notify('pending', 'Connecting wallet...');
+    try {
+      // Freighter wallet integration placeholder
+      const { isConnected, getPublicKey } = await import('@stellar/freighter-api').catch(() => {
+        throw new Error('Freighter wallet not installed');
+      });
+      if (!(await isConnected())) throw new Error('Freighter not connected');
+      const address = await getPublicKey();
+      dismiss(id);
+      setWalletAddress(address);
+      notify('success', 'Wallet connected');
+      fetchTokenBalance(address).then(setTokenBalance).catch(console.error);
+    } catch (e) {
+      dismiss(id);
+      notify('error', `Connection failed: ${(e as Error).message}`);
+    }
+  }
 
   useEffect(() => {
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
