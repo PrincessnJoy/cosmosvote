@@ -2,6 +2,7 @@ import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useState } from 'react';
 import { formatTokenAmount } from '../utils';
+import { explorerAccountUrl } from '../config';
 
 interface Props {
   proposal: Proposal;
@@ -25,6 +26,7 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
   }, [p.id, walletAddress]);
 
   const total = p.votes_yes + p.votes_no + p.votes_abstain;
+  const shortAddress = `${p.proposer.slice(0, 8)}...${p.proposer.slice(-4)}`;
 
   return (
     <div style={{
@@ -49,13 +51,23 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
           <tbody>
             {[
               ['State', p.state],
-              ['Proposer', `${p.proposer.slice(0, 8)}...${p.proposer.slice(-4)}`],
+              ['Proposer', (
+                <a
+                  href={explorerAccountUrl(p.proposer)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={p.proposer}
+                  style={{ color: '#2563eb', textDecoration: 'none' }}
+                >
+                  {shortAddress}
+                </a>
+              )],
               ['Start', formatDate(p.start_time)],
               ['End', formatDate(p.end_time)],
               ['Quorum', formatTokenAmount(p.quorum, decimals)],
               ['Total Votes', formatTokenAmount(total, decimals)],
             ].map(([k, v]) => (
-              <tr key={k} style={{ borderBottom: '1px solid #e5e7eb' }}>
+              <tr key={String(k)} style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={{ padding: '0.4rem 0', color: '#888', width: '40%' }}>{k}</td>
                 <td style={{ padding: '0.4rem 0', fontWeight: 500 }}>{v}</td>
               </tr>
