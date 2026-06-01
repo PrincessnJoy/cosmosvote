@@ -13,7 +13,8 @@ services:
       - STELLAR_RPC_URL=http://stellar-node:8000
       - STELLAR_NETWORK_PASSPHRASE=Standalone Network ; February 2021
     depends_on:
-      - stellar-node
+      stellar-node:
+        condition: service_healthy
     command: bash
 
   stellar-node:
@@ -23,6 +24,12 @@ services:
     environment:
       - NETWORK=local
     command: --local --enable-soroban-rpc
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 volumes:
   cargo-cache:
