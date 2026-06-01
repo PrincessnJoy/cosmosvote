@@ -564,3 +564,44 @@ fn test_get_proposals_by_state() {
     assert_eq!(cancelled.len(), 1);
     assert_eq!(cancelled.get(0).unwrap().id, 1);
 }
+
+// ---------------------------------------------------------------------------
+// Double-action guards (Issue #69)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_finalise_twice_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    let proposal = gov.get_proposal(&id);
+    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    gov.finalise(&id);
+    let result = gov.try_finalise(&id);
+    assert_eq!(result, Err(Ok(ContractError::ProposalNotActive)));
+}
+
+#[test]
+fn test_execute_twice_fails() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    let proposal = gov.get_proposal(&id);
+    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    gov.finalise(&id);
+    gov.execute(&admin, &id);
+    let result = gov.try_execute(&admin, &id);
+    assert_eq!(result, Err(Ok(ContractError::ProposalNotPassed)));
+}
+
+#[test]
+fn test_cancel_already_cancelled_fails() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cancel(&admin, &id);
+    let result = gov.try_cancel(&admin, &id);
+    assert_eq!(result, Err(Ok(ContractError::ProposalNotActive)));
+}
