@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { Proposal, ProposalState } from './types';
 import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
 import { ProposalCard } from './components/ProposalCard';
@@ -16,6 +16,7 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
+  const triggerRef = useRef<HTMLElement>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
@@ -118,7 +119,10 @@ export default function App() {
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} onClick={(e) => {
+              triggerRef.current = e?.currentTarget as HTMLElement ?? null;
+              setSelected(p);
+            }} />
           ))}
         </div>
       </main>
@@ -129,6 +133,7 @@ export default function App() {
           decimals={decimals}
           walletAddress={walletAddress}
           onClose={() => setSelected(null)}
+          triggerRef={triggerRef}
         />
       )}
     </div>
