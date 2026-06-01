@@ -20,6 +20,22 @@ export default function App() {
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
 
+  const connect = () => {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) setWalletAddress(addr);
+  };
+
+  const disconnect = () => setWalletAddress(null);
+
+  useEffect(() => {
+    if (!walletAddress) { setTokenBalance(null); return; }
+    fetchTokenBalance(walletAddress).then(setTokenBalance).catch(() => setTokenBalance(null));
+  }, [walletAddress]);
+
+  const refreshProposals = () => {
+    fetchAllProposals().then(setProposals).catch(() => {});
+  };
+
   useEffect(() => {
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
       .then(([props, decs]) => {
@@ -54,6 +70,12 @@ export default function App() {
               {tokenBalance !== null && (
                 <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
               )}
+              <button
+                onClick={disconnect}
+                style={{ marginTop: '0.25rem', background: 'none', color: '#94a3b8', border: '1px solid #475569', borderRadius: 4, padding: '0.2rem 0.5rem', cursor: 'pointer', fontSize: '0.7rem' }}
+              >
+                Disconnect
+              </button>
             </div>
           ) : (
             <button
@@ -118,7 +140,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>
@@ -129,6 +151,7 @@ export default function App() {
           decimals={decimals}
           walletAddress={walletAddress}
           onClose={() => setSelected(null)}
+          onVoteSuccess={refreshProposals}
         />
       )}
     </div>

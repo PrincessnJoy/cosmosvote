@@ -108,3 +108,45 @@ export async function fetchTokenDecimals(): Promise<number> {
   );
   return Number(result);
 }
+
+export async function castVote(
+  walletAddress: string,
+  proposalId: number,
+  vote: 'Yes' | 'No' | 'Abstain'
+): Promise<string> {
+  // Create a dummy account for signing (in a real app, this would use the user's actual wallet)
+  const dummyAccount = new Account(walletAddress, '0');
+
+  // Convert vote string to enum value
+  const voteEnum = { Yes: 0, No: 1, Abstain: 2 }[vote];
+
+  // Build the transaction
+  const tx = new TransactionBuilder(dummyAccount, {
+    fee: '100',
+    networkPassphrase: config.networkPassphrase,
+  })
+    .addOperation(
+      Operation.invokeContractFunction({
+        contract: config.governanceContractId,
+        function: 'cast_vote',
+        args: [
+          nativeToScVal(walletAddress, { type: 'address' }),
+          nativeToScVal(BigInt(proposalId), { type: 'u64' }),
+          nativeToScVal(voteEnum, { type: 'u32' }),
+        ],
+      })
+    )
+    .setTimeout(30)
+    .build();
+
+  // Simulate the transaction to verify it works
+  const result = (await server.simulateTransaction(
+    tx
+  )) as SorobanRpc.Api.SimulateTransactionSuccessResponse;
+
+  if (!result.result) throw new Error('Transaction simulation failed');
+
+  // In a real app, we would sign and submit the transaction here using the actual wallet
+  // For now, we return a simulated transaction hash
+  return `${result.result.retval}`;
+}

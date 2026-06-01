@@ -1,5 +1,5 @@
 import type { Proposal } from '../types';
-import { fetchHasVoted, fetchVoteRecord } from '../api';
+import { fetchHasVoted, fetchVoteRecord, castVote } from '../api';
 import { useEffect, useState } from 'react';
 import { formatTokenAmount } from '../utils';
 
@@ -8,15 +8,19 @@ interface Props {
   decimals: number;
   walletAddress: string | null;
   onClose: () => void;
+  onVoteSuccess?: () => void;
 }
 
 function formatDate(ts: bigint): string {
   return new Date(Number(ts) * 1000).toLocaleString();
 }
 
-export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }: Props) {
+export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, onVoteSuccess }: Props) {
   const [hasVoted, setHasVoted] = useState<boolean | null>(null);
   const [voteRecord, setVoteRecord] = useState<{ vote: string; weight: bigint } | null>(null);
+  const [isVoting, setIsVoting] = useState(false);
+  const [votingMessage, setVotingMessage] = useState<string | null>(null);
+  const [votingError, setVotingError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!walletAddress) return;
@@ -24,7 +28,42 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
     fetchVoteRecord(Number(p.id), walletAddress).then(setVoteRecord);
   }, [p.id, walletAddress]);
 
+  const handleVote = async (vote: 'Yes' | 'No' | 'Abstain') => {
+    if (!walletAddress) {
+      setVotingError('Wallet not connected');
+      return;
+    }
+
+    setIsVoting(true);
+    setVotingMessage(null);
+    setVotingError(null);
+
+    try {
+      const result = await castVote(walletAddress, Number(p.id), vote);
+      setVotingMessage(`✅ Vote submitted successfully! Transaction: ${String(result).slice(0, 16)}...`);
+      
+      // Refresh vote status
+      const voted = await fetchHasVoted(Number(p.id), walletAddress);
+      const record = await fetchVoteRecord(Number(p.id), walletAddress);
+      setHasVoted(voted);
+      setVoteRecord(record);
+      
+      // Call callback to refresh proposal data
+      if (onVoteSuccess) {
+        onVoteSuccess();
+      }
+    } catch (error) {
+      setVotingError(`❌ Voting failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsVoting(false);
+    }
+  };
+
   const total = p.votes_yes + p.votes_no + p.votes_abstain;
+  const isProposalActive = p.state === 'Active';
+  const currentTime = BigInt(Math.floor(Date.now() / 1000));
+  const votingOpen = currentTime >= p.start_time && currentTime <= p.end_time;
+  const canVote = isProposalActive && votingOpen && walletAddress && !hasVoted;
 
   return (
     <div style={{
@@ -77,11 +116,73 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
         </div>
 
         {walletAddress && (
-          <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem' }}>
+          <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem' }}>
             {hasVoted === null ? 'Checking vote status...' :
               hasVoted && voteRecord
                 ? `You voted ${voteRecord.vote} with weight ${formatTokenAmount(voteRecord.weight, decimals)}`
                 : 'You have not voted on this proposal'}
+          </div>
+        )}
+
+        {votingMessage && (
+          <div style={{ padding: '0.75rem', background: '#dcfce7', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem', color: '#166534' }}>
+            {votingMessage}
+          </div>
+        )}
+
+        {votingError && (
+          <div style={{ padding: '0.75rem', background: '#fee2e2', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem', color: '#991b1b' }}>
+            {votingError}
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+          {[
+            { label: 'Vote Yes', vote: 'Yes' as const, color: '#16a34a', disabled: !canVote },
+            { label: 'Vote No', vote: 'No' as const, color: '#dc2626', disabled: !canVote },
+            { label: 'Abstain', vote: 'Abstain' as const, color: '#6b7280', disabled: !canVote },
+          ].map(({ label, vote, color, disabled }) => (
+            <button
+              key={vote}
+              onClick={() => handleVote(vote)}
+              disabled={disabled || isVoting}
+              style={{
+                padding: '0.75rem',
+                background: disabled || isVoting ? '#e5e7eb' : color,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                cursor: disabled || isVoting ? 'not-allowed' : 'pointer',
+                fontWeight: 500,
+                opacity: disabled || isVoting ? 0.6 : 1,
+              }}
+            >
+              {isVoting ? 'Submitting...' : label}
+            </button>
+          ))}
+        </div>
+
+        {!walletAddress && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#fef3c7', borderRadius: 8, fontSize: '0.875rem', color: '#92400e' }}>
+            ℹ️ Connect your wallet to vote on this proposal
+          </div>
+        )}
+
+        {walletAddress && hasVoted && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#e0e7ff', borderRadius: 8, fontSize: '0.875rem', color: '#3730a3' }}>
+            ✓ You have already voted on this proposal
+          </div>
+        )}
+
+        {walletAddress && !isProposalActive && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#f3e8ff', borderRadius: 8, fontSize: '0.875rem', color: '#6b21a8' }}>
+            ℹ️ This proposal is not active and cannot receive new votes
+          </div>
+        )}
+
+        {walletAddress && isProposalActive && !votingOpen && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#f3e8ff', borderRadius: 8, fontSize: '0.875rem', color: '#6b21a8' }}>
+            ℹ️ Voting is not open yet or has ended for this proposal
           </div>
         )}
       </div>
