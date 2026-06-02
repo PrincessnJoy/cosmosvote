@@ -103,7 +103,7 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 
 ### Prerequisites
 
-- Rust 1.75+ with `wasm32-unknown-unknown` target
+- Rust 1.75+ with `wasm32-unknown-unknown` target.
 - Stellar CLI (optional, for deployment)
 - Docker & Docker Compose (optional)
 
