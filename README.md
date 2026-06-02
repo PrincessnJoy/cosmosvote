@@ -71,7 +71,32 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 │                    └────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
 ```
+### Frontend ↔ Contract Interaction
 
+The user flow between the frontend, wallet, Soroban RPC, and smart contracts is documented below. This flow is also available as a dedicated Mermaid diagram in [docs/frontend-contract-flow.md](docs/frontend-contract-flow.md).
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Frontend
+  participant Wallet
+  participant SorobanRPC
+  participant Contract
+
+  User->>Frontend: open app
+  Frontend->>Wallet: request wallet connect
+  Wallet-->>Frontend: wallet connected / account authorized
+  Frontend->>SorobanRPC: fetch proposals
+  SorobanRPC-->>Frontend: proposals list
+  User->>Frontend: select proposal and cast vote
+  Frontend->>Wallet: request transaction signature
+  Wallet-->>Frontend: signed transaction
+  Frontend->>SorobanRPC: submit transaction
+  SorobanRPC->>Contract: invoke voting contract
+  Contract-->>SorobanRPC: transaction result
+  SorobanRPC-->>Frontend: confirmation
+  Frontend->>User: display confirmation
+```
 ### Key Design Decisions
 
 | Decision | Approach |
