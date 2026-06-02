@@ -60,6 +60,46 @@ if $CHECK_ENV_ONLY; then
   exit 0
 fi
 
+# ─── Backup & verification helpers ───────────────────────────────────────────
+BACKUP_DIR="$ROOT_DIR/logs/backups"
+mkdir -p "$BACKUP_DIR"
+
+backup_contracts() {
+  local stamp; stamp="$(date +%Y%m%d_%H%M%S)"
+  local backup_file="$BACKUP_DIR/contracts_mainnet_${stamp}.env"
+  {
+    echo "# CosmosVote contract backup — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "# Network: mainnet"
+    echo "TOKEN_CONTRACT_ID=${TOKEN_CONTRACT_ID:-}"
+    echo "GOVERNANCE_CONTRACT_ID=${GOVERNANCE_CONTRACT_ID:-}"
+  } > "$backup_file"
+  log INFO "Pre-deployment backup saved: $backup_file"
+  echo "$backup_file"
+}
+
+verify_deployment() {
+  local token_id="$1" gov_id="$2"
+  log INFO "Verifying token contract ($token_id)..."
+  stellar contract invoke \
+    --id "$token_id" \
+    --source "$STELLAR_SECRET_KEY" \
+    --rpc-url "$RPC_URL" \
+    --network-passphrase "$PASSPHRASE" \
+    -- total_supply >/dev/null \
+    || { log ERROR "Token contract verification failed"; return 1; }
+
+  log INFO "Verifying governance contract ($gov_id)..."
+  stellar contract invoke \
+    --id "$gov_id" \
+    --source "$STELLAR_SECRET_KEY" \
+    --rpc-url "$RPC_URL" \
+    --network-passphrase "$PASSPHRASE" \
+    -- get_proposal_count >/dev/null \
+    || { log ERROR "Governance contract verification failed"; return 1; }
+
+  log INFO "Post-deployment verification passed."
+}
+
 log WARN "╔══════════════════════════════════════════════════════════╗"
 log WARN "║          CosmosVote — MAINNET DEPLOYMENT                 ║"
 log WARN "╠══════════════════════════════════════════════════════════╣"
@@ -78,6 +118,9 @@ if [[ "$CONFIRM" != "deploy mainnet" ]]; then
   log WARN "Deployment aborted by user."
   exit 1
 fi
+
+# ─── Pre-deployment backup ────────────────────────────────────────────────────
+backup_contracts
 
 # ─── Build ───────────────────────────────────────────────────────────────────
 log INFO "Building WASM binaries..."
@@ -145,6 +188,9 @@ stellar contract invoke \
   --proposal_cooldown "$PROPOSAL_COOLDOWN" \
   --restrict_admin_vote "$RESTRICT_ADMIN_VOTE" \
   || { log ERROR "Governance contract initialization failed"; exit 1; }
+
+# ─── Post-deployment verification ────────────────────────────────────────────
+verify_deployment "$TOKEN_CONTRACT_ID" "$GOVERNANCE_CONTRACT_ID"
 
 # ─── Summary ─────────────────────────────────────────────────────────────────
 log INFO "=== Mainnet deployment complete ==="
