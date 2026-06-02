@@ -14,7 +14,7 @@ CosmosVote enables DAOs, protocols, and communities to create proposals, cast to
 ## Table of Contents
 
 - [Project Overview](#project-overview)
-- [Architecture](#architecture)
+- [Architecture.](#architecture)
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
