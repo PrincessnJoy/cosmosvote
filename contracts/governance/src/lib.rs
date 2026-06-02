@@ -455,6 +455,20 @@ impl GovernanceContract {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
+        // Guard: reject the all-zeros Stellar account (zero-address equivalent).
+        // GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF is the strkey
+        // encoding of a 32-byte zeroed public key — no valid keypair can sign for it.
+        let zero_addr = Address::from_string(
+            &env,
+            &soroban_sdk::String::from_str(
+                &env,
+                "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+            ),
+        );
+        if new_admin == zero_addr {
+            return Err(ContractError::InvalidNewAdmin);
+        }
+
         GovernanceStorage::set_pending_admin(&env, Some(&new_admin));
         GovernanceEvents::admin_transfer_initiated(&env, &admin, &new_admin);
         Ok(())

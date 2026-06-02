@@ -13,7 +13,28 @@ fi
 
 NETWORK="${NETWORK:-local}"
 STELLAR_RPC_URL="${STELLAR_RPC_URL:-http://localhost:8000}"
-STELLAR_SECRET_KEY="${STELLAR_SECRET_KEY:?STELLAR_SECRET_KEY must be set}"
+
+# ─── Secrets manager injection ───────────────────────────────────────────────
+# If STELLAR_SECRET_KEY is not already set, try to fetch it from a secrets manager.
+#
+#   AWS Secrets Manager: set SECRETS_MANAGER_SECRET_ID to your secret name/ARN.
+#   HashiCorp Vault:     set VAULT_SECRET_PATH and VAULT_SECRET_FIELD.
+#
+# Example:
+#   export SECRETS_MANAGER_SECRET_ID=cosmosvote/stellar-secret-key
+#   export VAULT_SECRET_PATH=secret/cosmosvote   VAULT_SECRET_FIELD=stellar_secret_key
+if [[ -z "${STELLAR_SECRET_KEY:-}" ]] && [[ -n "${SECRETS_MANAGER_SECRET_ID:-}" ]]; then
+  echo ">>> Fetching STELLAR_SECRET_KEY from AWS Secrets Manager ($SECRETS_MANAGER_SECRET_ID)..."
+  STELLAR_SECRET_KEY=$(aws secretsmanager get-secret-value \
+    --secret-id "$SECRETS_MANAGER_SECRET_ID" \
+    --query SecretString \
+    --output text)
+elif [[ -z "${STELLAR_SECRET_KEY:-}" ]] && [[ -n "${VAULT_SECRET_PATH:-}" ]]; then
+  echo ">>> Fetching STELLAR_SECRET_KEY from HashiCorp Vault ($VAULT_SECRET_PATH)..."
+  STELLAR_SECRET_KEY=$(vault kv get -field="${VAULT_SECRET_FIELD:-stellar_secret_key}" "$VAULT_SECRET_PATH")
+fi
+
+STELLAR_SECRET_KEY="${STELLAR_SECRET_KEY:?STELLAR_SECRET_KEY must be set (or set SECRETS_MANAGER_SECRET_ID / VAULT_SECRET_PATH)}"
 INITIAL_TOKEN_SUPPLY="${INITIAL_TOKEN_SUPPLY:-1000000000}"
 TOKEN_NAME="${TOKEN_NAME:-CosmosVote}"
 TOKEN_SYMBOL="${TOKEN_SYMBOL:-VOTE}"
