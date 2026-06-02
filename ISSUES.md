@@ -1372,7 +1372,7 @@
 **Acceptance Criteria:**
 - Document the required CORS configuration for the RPC endpoint in `docs/`
 - Add a CORS check to the frontend startup (warn if RPC is unreachable)
-- For the local Docker setup, configure the quickstart node's CORS headers
+- For the local Docker setup, configure the quickstart node's CORS headers.
 
 **Priority:** Medium
 **Estimated Effort:** Small
