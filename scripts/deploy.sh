@@ -17,6 +17,21 @@ log() {
 
 trap 'log ERROR "Script failed at line $LINENO. Check $LOG_FILE for details."' ERR
 
+# ─── Env validation ──────────────────────────────────────────────────────────
+check_required_env() {
+  local missing=0
+  for var in "$@"; do
+    if [[ -z "${!var:-}" ]]; then
+      log ERROR "Required environment variable '$var' is unset or empty"
+      missing=1
+    fi
+  done
+  [[ $missing -eq 0 ]] || exit 1
+}
+
+CHECK_ENV_ONLY=false
+[[ "${1:-}" == "--check-env" ]] && CHECK_ENV_ONLY=true
+
 # ─── Load environment ────────────────────────────────────────────────────────
 if [[ -f "$ROOT_DIR/.env" ]]; then
   # shellcheck disable=SC1091
@@ -25,7 +40,7 @@ fi
 
 NETWORK="${NETWORK:-local}"
 STELLAR_RPC_URL="${STELLAR_RPC_URL:-http://localhost:8000}"
-STELLAR_SECRET_KEY="${STELLAR_SECRET_KEY:?STELLAR_SECRET_KEY must be set}"
+STELLAR_SECRET_KEY="${STELLAR_SECRET_KEY:-}"
 INITIAL_TOKEN_SUPPLY="${INITIAL_TOKEN_SUPPLY:-1000000000}"
 TOKEN_NAME="${TOKEN_NAME:-CosmosVote}"
 TOKEN_SYMBOL="${TOKEN_SYMBOL:-VOTE}"
@@ -33,6 +48,8 @@ TOKEN_DECIMALS="${TOKEN_DECIMALS:-7}"
 MIN_PROPOSAL_BALANCE="${MIN_PROPOSAL_BALANCE:-0}"
 PROPOSAL_COOLDOWN="${PROPOSAL_COOLDOWN:-0}"
 RESTRICT_ADMIN_VOTE="${RESTRICT_ADMIN_VOTE:-false}"
+
+check_required_env STELLAR_SECRET_KEY NETWORK
 
 case "$NETWORK" in
   local)
@@ -47,6 +64,11 @@ case "$NETWORK" in
     exit 1
     ;;
 esac
+
+if $CHECK_ENV_ONLY; then
+  log INFO "All required environment variables are set."
+  exit 0
+fi
 
 log INFO "=== CosmosVote Deployment ==="
 log INFO "Network : $NETWORK"
