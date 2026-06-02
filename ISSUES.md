@@ -1980,7 +1980,7 @@
 **Acceptance Criteria:**
 - Design a `MultiChoiceProposal` type with up to 10 options
 - Add `create_multi_choice_proposal` and `cast_multi_choice_vote` functions
-- The winning option is the one with the most votes (plurality)
+- The winning option is the one with the most votes (plurality).
 - Add tests and documentation
 
 **Priority:** Low
