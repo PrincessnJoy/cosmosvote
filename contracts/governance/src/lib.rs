@@ -250,6 +250,63 @@ impl GovernanceContract {
         proposals
     }
 
+    /// Amend the title and description of an active proposal before any votes are cast.
+    /// Only callable by the original proposer.
+    pub fn amend_proposal(
+        env: Env,
+        proposer: Address,
+        proposal_id: u64,
+        new_title: String,
+        new_description: String,
+    ) -> Result<(), ContractError> {
+        proposer.require_auth();
+        Self::assert_ready(&env)?;
+
+        let mut proposal = GovernanceStorage::proposal(&env, proposal_id)
+            .ok_or(ContractError::ProposalNotFound)?;
+
+        if proposal.proposer != proposer {
+            return Err(ContractError::NotProposer);
+        }
+
+        if proposal.state != ProposalState::Active {
+            return Err(ContractError::ProposalNotActive);
+        }
+
+        let total_votes = proposal.votes_yes
+            .checked_add(proposal.votes_no)
+            .and_then(|v| v.checked_add(proposal.votes_abstain))
+            .ok_or(ContractError::ArithmeticOverflow)?;
+
+        if total_votes > 0 {
+            return Err(ContractError::VotesAlreadyCast);
+        }
+
+        if new_title.len() == 0 || new_title.len() > 128 {
+            return Err(ContractError::InvalidTitle);
+        }
+        if new_description.len() == 0 || new_description.len() > 1024 {
+            return Err(ContractError::InvalidDescription);
+        }
+
+        let old_title = proposal.title.clone();
+        let old_description = proposal.description.clone();
+        proposal.title = new_title.clone();
+        proposal.description = new_description.clone();
+        GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
+
+        GovernanceEvents::proposal_amended(
+            &env,
+            proposal_id,
+            &proposer,
+            &old_title,
+            &new_title,
+            &old_description,
+            &new_description,
+        );
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Voting
     // -----------------------------------------------------------------------

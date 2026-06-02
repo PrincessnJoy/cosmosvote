@@ -42,6 +42,8 @@ pub enum ContractError {
     QuorumUpdateNotAllowed = 32,
     NoPendingAdmin      = 33,
     NotPendingAdmin     = 34,
+    NotProposer         = 35,
+    VotesAlreadyCast    = 36,
 
     // Contract state
     ContractPaused      = 40,
