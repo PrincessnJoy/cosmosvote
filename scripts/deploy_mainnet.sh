@@ -5,9 +5,22 @@
 #     Double-check all parameters before running.
 set -euo pipefail
 
+# ─── Logging ─────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+LOG_DIR="$ROOT_DIR/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/deploy_mainnet_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "$LOG_FILE") 2>&1
 
+log() {
+  local level="$1"; shift
+  echo "[$(date +%Y-%m-%dT%H:%M:%S)] [$level] $*"
+}
+
+trap 'log ERROR "Script failed at line $LINENO. Check $LOG_FILE for details."' ERR
+
+# ─── Load environment ────────────────────────────────────────────────────────
 if [[ -f "$ROOT_DIR/.env" ]]; then
   # shellcheck disable=SC1091
   source "$ROOT_DIR/.env"
@@ -25,47 +38,55 @@ RESTRICT_ADMIN_VOTE="${RESTRICT_ADMIN_VOTE:-true}"
 PASSPHRASE="Public Global Stellar Network ; September 2015"
 RPC_URL="https://soroban-mainnet.stellar.org"
 
-echo "╔══════════════════════════════════════════════════════════╗"
-echo "║          CosmosVote — MAINNET DEPLOYMENT                 ║"
-echo "╠══════════════════════════════════════════════════════════╣"
-echo "║  ⚠️  You are about to deploy to STELLAR MAINNET          ║"
-echo "║  This action is IRREVERSIBLE.                            ║"
-echo "╚══════════════════════════════════════════════════════════╝"
-echo ""
-echo "Parameters:"
-echo "  Initial supply      : $INITIAL_TOKEN_SUPPLY"
-echo "  Min proposal balance: $MIN_PROPOSAL_BALANCE"
-echo "  Proposal cooldown   : ${PROPOSAL_COOLDOWN}s"
-echo "  Restrict admin vote : $RESTRICT_ADMIN_VOTE"
-echo ""
+log WARN "╔══════════════════════════════════════════════════════════╗"
+log WARN "║          CosmosVote — MAINNET DEPLOYMENT                 ║"
+log WARN "╠══════════════════════════════════════════════════════════╣"
+log WARN "║  ⚠️  You are about to deploy to STELLAR MAINNET          ║"
+log WARN "║  This action is IRREVERSIBLE.                            ║"
+log WARN "╚══════════════════════════════════════════════════════════╝"
+log INFO "Parameters:"
+log INFO "  Initial supply      : $INITIAL_TOKEN_SUPPLY"
+log INFO "  Min proposal balance: $MIN_PROPOSAL_BALANCE"
+log INFO "  Proposal cooldown   : ${PROPOSAL_COOLDOWN}s"
+log INFO "  Restrict admin vote : $RESTRICT_ADMIN_VOTE"
+log INFO "Log file: $LOG_FILE"
+
 read -r -p "Type 'deploy mainnet' to confirm: " CONFIRM
 if [[ "$CONFIRM" != "deploy mainnet" ]]; then
-  echo "Aborted."
+  log WARN "Deployment aborted by user."
   exit 1
 fi
 
-echo ""
-echo ">>> Building WASM binaries..."
+# ─── Build ───────────────────────────────────────────────────────────────────
+log INFO "Building WASM binaries..."
 cd "$ROOT_DIR"
-cargo build --release --target wasm32-unknown-unknown
+cargo build --release --target wasm32-unknown-unknown \
+  || { log ERROR "cargo build failed"; exit 1; }
 
 TOKEN_WASM="$ROOT_DIR/target/wasm32-unknown-unknown/release/cosmosvote_token.wasm"
 GOV_WASM="$ROOT_DIR/target/wasm32-unknown-unknown/release/cosmosvote_governance.wasm"
 
+for wasm in "$TOKEN_WASM" "$GOV_WASM"; do
+  [[ -f "$wasm" ]] || { log ERROR "WASM not found: $wasm"; exit 1; }
+done
+
+# ─── Derive admin address ────────────────────────────────────────────────────
 ADMIN_ADDRESS=$(stellar keys address --secret-key "$STELLAR_SECRET_KEY" 2>/dev/null || \
-  stellar keys address "$STELLAR_SECRET_KEY")
+  stellar keys address "$STELLAR_SECRET_KEY") \
+  || { log ERROR "Failed to derive admin address from STELLAR_SECRET_KEY"; exit 1; }
+log INFO "Admin: $ADMIN_ADDRESS"
 
-echo "Admin: $ADMIN_ADDRESS"
-
-echo ">>> Deploying token contract to mainnet..."
+# ─── Deploy token contract ───────────────────────────────────────────────────
+log INFO "Deploying token contract to mainnet..."
 TOKEN_CONTRACT_ID=$(stellar contract deploy \
   --wasm "$TOKEN_WASM" \
   --source "$STELLAR_SECRET_KEY" \
   --rpc-url "$RPC_URL" \
-  --network-passphrase "$PASSPHRASE")
+  --network-passphrase "$PASSPHRASE") \
+  || { log ERROR "Token contract deployment failed"; exit 1; }
+log INFO "Token contract ID: $TOKEN_CONTRACT_ID"
 
-echo "Token contract ID: $TOKEN_CONTRACT_ID"
-
+log INFO "Initializing token contract..."
 stellar contract invoke \
   --id "$TOKEN_CONTRACT_ID" \
   --source "$STELLAR_SECRET_KEY" \
@@ -76,17 +97,20 @@ stellar contract invoke \
   --initial_supply "$INITIAL_TOKEN_SUPPLY" \
   --name "$TOKEN_NAME" \
   --symbol "$TOKEN_SYMBOL" \
-  --decimals "$TOKEN_DECIMALS"
+  --decimals "$TOKEN_DECIMALS" \
+  || { log ERROR "Token contract initialization failed"; exit 1; }
 
-echo ">>> Deploying governance contract to mainnet..."
+# ─── Deploy governance contract ──────────────────────────────────────────────
+log INFO "Deploying governance contract to mainnet..."
 GOVERNANCE_CONTRACT_ID=$(stellar contract deploy \
   --wasm "$GOV_WASM" \
   --source "$STELLAR_SECRET_KEY" \
   --rpc-url "$RPC_URL" \
-  --network-passphrase "$PASSPHRASE")
+  --network-passphrase "$PASSPHRASE") \
+  || { log ERROR "Governance contract deployment failed"; exit 1; }
+log INFO "Governance contract ID: $GOVERNANCE_CONTRACT_ID"
 
-echo "Governance contract ID: $GOVERNANCE_CONTRACT_ID"
-
+log INFO "Initializing governance contract..."
 stellar contract invoke \
   --id "$GOVERNANCE_CONTRACT_ID" \
   --source "$STELLAR_SECRET_KEY" \
@@ -97,9 +121,11 @@ stellar contract invoke \
   --voting_token "$TOKEN_CONTRACT_ID" \
   --min_proposal_balance "$MIN_PROPOSAL_BALANCE" \
   --proposal_cooldown "$PROPOSAL_COOLDOWN" \
-  --restrict_admin_vote "$RESTRICT_ADMIN_VOTE"
+  --restrict_admin_vote "$RESTRICT_ADMIN_VOTE" \
+  || { log ERROR "Governance contract initialization failed"; exit 1; }
 
-echo ""
-echo "=== Mainnet deployment complete ==="
-echo "TOKEN_CONTRACT_ID=$TOKEN_CONTRACT_ID"
-echo "GOVERNANCE_CONTRACT_ID=$GOVERNANCE_CONTRACT_ID"
+# ─── Summary ─────────────────────────────────────────────────────────────────
+log INFO "=== Mainnet deployment complete ==="
+log INFO "TOKEN_CONTRACT_ID=$TOKEN_CONTRACT_ID"
+log INFO "GOVERNANCE_CONTRACT_ID=$GOVERNANCE_CONTRACT_ID"
+log INFO "Full log saved to: $LOG_FILE"
