@@ -35,6 +35,7 @@ mod token_interface {
     #[contractclient(name = "TokenClient")]
     pub trait TokenInterface {
         fn balance(env: Env, owner: Address) -> i128;
+        fn balance_at(env: Env, owner: Address, ledger: u64) -> i128;
         fn total_supply(env: Env) -> i128;
     }
 }
