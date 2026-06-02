@@ -23,7 +23,7 @@ use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 use events::GovernanceEvents;
 use storage::GovernanceStorage;
-use types::{ContractError, ContractState, GovernanceConfig, Proposal, ProposalState, Vote, VoteRecord};
+use types::{ContractError, ContractState, GovernanceConfig, Proposal, ProposalState, TreasuryAction, Vote, VoteRecord};
 
 // ---------------------------------------------------------------------------
 // Token interface (cross-contract call)
@@ -40,6 +40,22 @@ mod token_interface {
 }
 
 pub(crate) use token_interface::TokenClient;
+
+// ---------------------------------------------------------------------------
+// Treasury interface (cross-contract call)
+// ---------------------------------------------------------------------------
+
+mod treasury_interface {
+    use soroban_sdk::{contractclient, Env};
+    use crate::types::TreasuryAction;
+
+    #[contractclient(name = "TreasuryClient")]
+    pub trait TreasuryInterface {
+        fn disburse(env: Env, action: TreasuryAction);
+    }
+}
+
+use treasury_interface::TreasuryClient;
 
 // ---------------------------------------------------------------------------
 // Contract
@@ -62,6 +78,7 @@ impl GovernanceContract {
     /// * `proposal_cooldown`    – seconds between proposals per address (0 = none)
     /// * `min_quorum_bps`       – minimum quorum floor in basis points (100 = 1%)
     /// * `restrict_admin_vote`  – if true, admin cannot vote on own proposals
+    /// * `treasury`             – optional treasury contract address
     pub fn initialize(
         env: Env,
         admin: Address,
@@ -70,6 +87,7 @@ impl GovernanceContract {
         proposal_cooldown: u64,
         min_quorum_bps: u32,
         restrict_admin_vote: bool,
+        treasury: Option<Address>,
     ) -> Result<(), ContractError> {
         if GovernanceStorage::contract_state(&env) != ContractState::Uninitialized {
             return Err(ContractError::AlreadyInitialized);
@@ -77,6 +95,9 @@ impl GovernanceContract {
 
         GovernanceStorage::set_admin(&env, &admin);
         GovernanceStorage::set_voting_token(&env, &voting_token);
+        if let Some(t) = &treasury {
+            GovernanceStorage::set_treasury_contract(&env, t);
+        }
         GovernanceStorage::set_proposal_count(&env, 0);
         GovernanceStorage::set_min_proposal_balance(&env, min_proposal_balance);
         GovernanceStorage::set_proposal_cooldown(&env, proposal_cooldown);
@@ -116,6 +137,7 @@ impl GovernanceContract {
         description: String,
         quorum: i128,
         duration: u64,
+        treasury_action: Option<TreasuryAction>,
     ) -> Result<u64, ContractError> {
         proposer.require_auth();
         Self::assert_ready(&env)?;
@@ -191,6 +213,7 @@ impl GovernanceContract {
             end_time: now + duration,
             state: ProposalState::Active,
             snapshot_ledger,
+            treasury_action,
         };
 
         GovernanceStorage::set_proposal(&env, id, &proposal);
@@ -371,6 +394,14 @@ impl GovernanceContract {
 
         if proposal.state != ProposalState::Passed {
             return Err(ContractError::ProposalNotPassed);
+        }
+
+        // Invoke treasury disbursement if a payload is attached
+        if let Some(action) = proposal.treasury_action.clone() {
+            if let Some(treasury_addr) = GovernanceStorage::treasury_contract(&env) {
+                let treasury = TreasuryClient::new(&env, &treasury_addr);
+                treasury.disburse(&action);
+            }
         }
 
         proposal.state = ProposalState::Executed;
