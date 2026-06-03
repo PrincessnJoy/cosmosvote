@@ -77,6 +77,7 @@ fn bench_finalise() {
         &String::from_str(&env, "Measuring instruction count for finalise"),
         &1_000_000i128,
         &604_800u64,
+        &None,
     );
 
     let voter = Address::generate(&env);

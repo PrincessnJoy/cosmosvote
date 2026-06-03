@@ -153,6 +153,11 @@ impl GovernanceContract {
         if description.len() == 0 || description.len() > 1024 {
             return Err(ContractError::InvalidDescription);
         }
+        if let Some(ref l) = link {
+            if l.len() == 0 || l.len() > 256 {
+                return Err(ContractError::InvalidLink);
+            }
+        }
         if quorum <= 0 {
             return Err(ContractError::InvalidQuorum);
         }
@@ -215,6 +220,7 @@ impl GovernanceContract {
             proposer: proposer.clone(),
             title: title.clone(),
             description: description.clone(),
+            link,
             votes_yes: 0,
             votes_no: 0,
             votes_abstain: 0,

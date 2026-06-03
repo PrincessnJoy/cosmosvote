@@ -293,6 +293,52 @@ fn test_create_proposal_below_quorum_floor_fails() {
 }
 
 // ---------------------------------------------------------------------------
+// Proposal link field (issue #18)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_create_proposal_with_link() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "Linked Proposal"),
+        &String::from_str(&env, "See forum for details"),
+        &5_000_000i128,
+        &604_800u64,
+        &Some(String::from_str(&env, "https://forum.cosmosvote.io/t/123")),
+    );
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.link, Some(String::from_str(&env, "https://forum.cosmosvote.io/t/123")));
+}
+
+#[test]
+fn test_create_proposal_without_link() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.link, None);
+}
+
+#[test]
+fn test_create_proposal_link_too_long_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    // 257-char string
+    let long_link = String::from_str(&env, "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, "desc"),
+        &5_000_000i128,
+        &604_800u64,
+        &Some(long_link),
+    );
+    assert_eq!(result, Err(Ok(ContractError::InvalidLink)));
+}
+
+// ---------------------------------------------------------------------------
 // Voting
 // ---------------------------------------------------------------------------
 
