@@ -172,6 +172,7 @@ cd frontend && npm ci && npm run license-check
 - Property-based tests go in `src/prop_tests.rs`
 - Use `env.mock_all_auths()` in tests
 - Test both success and failure paths for every public function
+- **Coverage Target:** All contributions must maintain at least **80% code coverage**. The CI will fail if coverage drops below this threshold.
 
 ## Security
 
