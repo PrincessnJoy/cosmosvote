@@ -74,6 +74,7 @@ export default function App() {
         </div>
       </header>
 
+      <ErrorBoundary>
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1rem' }}>
         {/* Filters */}
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
@@ -136,6 +137,7 @@ export default function App() {
           ))}
         </div>
       </main>
+      </ErrorBoundary>
 
       {selected && (
         <ProposalDetail
