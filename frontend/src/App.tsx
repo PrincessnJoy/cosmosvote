@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
+import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals, checkRpcReachability } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
-import { ErrorBoundary } from './components/ErrorBoundary';
+import { useToast } from './components/ToastContext';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
 
@@ -20,6 +20,7 @@ export default function App() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
+  const [rpcWarning, setRpcWarning] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
@@ -29,6 +30,12 @@ export default function App() {
       })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    checkRpcReachability().catch(error => {
+      setRpcWarning(String(error));
+    });
   }, []);
 
   const filtered = useMemo(() => {
@@ -89,6 +96,12 @@ export default function App() {
             {ALL_STATES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
+
+        {rpcWarning && (
+          <div style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
+            <strong>RPC warning:</strong> {rpcWarning}
+          </div>
+        )}
 
         {/* Stats bar */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>

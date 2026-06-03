@@ -46,6 +46,31 @@ async function simulateCall(
   return scValToNative(result.result.retval);
 }
 
+export async function checkRpcReachability(): Promise<void> {
+  try {
+    const response = await fetch(config.rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getHealth', params: [] }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`RPC returned HTTP ${response.status}`);
+    }
+
+    const body = await response.json();
+    if (body.error) {
+      throw new Error(`RPC error: ${JSON.stringify(body.error)}`);
+    }
+  } catch (err) {
+    throw new Error(
+      `Unable to reach Soroban RPC at ${config.rpcUrl}. Confirm the RPC endpoint is running and that CORS allows browser access. ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
+}
+
 export async function fetchProposalCount(): Promise<number> {
   const count = await simulateCall(config.governanceContractId, 'proposal_count');
   return Number(count);
