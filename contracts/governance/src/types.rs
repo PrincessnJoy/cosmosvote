@@ -1,6 +1,6 @@
 //! Governance contract — type definitions and error codes.
 
-use soroban_sdk::{contracterror, contracttype, Address, String};
+use soroban_sdk::{contracterror, contracttype, Address, String, Symbol, Vec, Val};
 
 // ---------------------------------------------------------------------------
 // Error codes
@@ -26,20 +26,25 @@ pub enum ContractError {
     InsufficientBalance = 18,
     ProposalCooldown    = 19,
     QuorumBelowFloor    = 20,
+    ProposalsStillActive = 21,
 
     // Voting
-    VotingNotStarted    = 21,
-    VotingPeriodEnded   = 22,
-    VotingStillOpen     = 23,
-    AlreadyVoted        = 24,
-    NoVotingPower       = 25,
-    AdminVoteRestricted = 26,
-    VoteNotFound        = 27,
+    VotingNotStarted    = 22,
+    VotingPeriodEnded   = 23,
+    VotingStillOpen     = 24,
+    AlreadyVoted        = 25,
+    NoVotingPower       = 26,
+    AdminVoteRestricted = 27,
+    VoteNotFound        = 28,
 
     // Admin
     NotAdmin            = 30,
     InvalidNewAdmin     = 31,
     QuorumUpdateNotAllowed = 32,
+    NoPendingAdmin      = 33,
+    NotPendingAdmin     = 34,
+    NotProposer         = 35,
+    VotesAlreadyCast    = 36,
 
     // Contract state
     ContractPaused      = 40,
@@ -47,6 +52,9 @@ pub enum ContractError {
 
     // Arithmetic
     ArithmeticOverflow  = 50,
+
+    // Execution
+    ExecutionFailed     = 60,
 }
 
 // ---------------------------------------------------------------------------
@@ -76,11 +84,20 @@ pub enum ProposalState {
 
 #[contracttype]
 #[derive(Clone, Debug)]
+pub struct ExecutionPayload {
+    pub contract: Address,
+    pub action: Symbol,
+    pub args: Vec<Val>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
 pub struct Proposal {
     pub id: u64,
     pub proposer: Address,
     pub title: String,
     pub description: String,
+    pub link: Option<String>,
     pub votes_yes: i128,
     pub votes_no: i128,
     pub votes_abstain: i128,
@@ -88,6 +105,9 @@ pub struct Proposal {
     pub start_time: u64,
     pub end_time: u64,
     pub state: ProposalState,
+    pub snapshot_ledger: u32,
+    /// Optional treasury disbursement to execute on proposal execution.
+    pub treasury_action: Option<TreasuryAction>,
 }
 
 // ---------------------------------------------------------------------------
@@ -118,4 +138,25 @@ pub struct GovernanceConfig {
     pub proposal_cooldown: u64,
     pub restrict_admin_vote: bool,
     pub paused: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Treasury
+// ---------------------------------------------------------------------------
+
+/// Asset to disburse — native XLM or a SEP-41 token.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub enum TreasuryAsset {
+    Native,
+    Token(Address),
+}
+
+/// Optional payload attached to a proposal for on-execution treasury disbursement.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct TreasuryAction {
+    pub recipient: Address,
+    pub amount: i128,
+    pub asset: TreasuryAsset,
 }
