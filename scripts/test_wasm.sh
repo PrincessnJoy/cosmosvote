@@ -38,4 +38,4 @@ if command -v stellar &>/dev/null; then
 fi
 
 echo ""
-echo "=== WASM test passed ==="
+echo "=== WASM test passed. ==="
