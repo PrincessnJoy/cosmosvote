@@ -3,6 +3,7 @@
 //! Manages the full proposal lifecycle: creation, voting, finalization,
 //! execution, and cancellation. Enforces quorum, prevents double-voting,
 //! and emits on-chain events for every state transition.
+//! .
 
 #![no_std]
 
