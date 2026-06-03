@@ -1,58 +1,469 @@
-# On-Chain Events Reference
+# On-Chain Event Schema
 
-All events follow the Soroban event format: a **topics tuple** and a **data tuple**.
+Both CosmosVote contracts emit Soroban events on every state transition. This document is the authoritative reference for off-chain indexers, explorers, and frontend consumers.
 
----
+## Encoding
 
-## Token Contract Events
+Soroban events are published via `env.events().publish(topics, data)`.
 
-Contract prefix: `"token"` (`symbol_short!("token")`)
-
-| Event | Topics | Data | Description |
-|-------|--------|------|-------------|
-| `initialized` | `("token", "init")` | `(admin: Address, supply: i128)` | Emitted once on contract initialization |
-| `transfer` | `("token", "xfer")` | `(from: Address, to: Address, amount: i128)` | Token transfer between accounts |
-| `approval` | `("token", "approve")` | `(owner: Address, spender: Address, amount: i128)` | Allowance set by owner for spender |
-| `minted` | `("token", "mint")` | `(admin: Address, to: Address, amount: i128)` | New tokens minted by admin |
-| `burned` | `("token", "burn")` | `(admin: Address, from: Address, amount: i128)` | Tokens burned by admin |
-| `admin_transferred` | `("token", "admin")` | `(old_admin: Address, new_admin: Address)` | Admin privileges transferred |
+- **Topics** — a tuple of `Symbol` values, always `(contract_tag, event_tag)`.
+- **Data** — a tuple (or scalar) of typed values encoded as XDR `ScVal`.
+- **Addresses** — `ScVal::Address` (Stellar `G…` or contract `C…` strkey).
+- **Integers** — `i128` encoded as `ScVal::I128`, `u64` as `ScVal::U64`, `u32` as `ScVal::U32`.
+- **Strings** — `ScVal::String`.
+- **Enums** — `ScVal::Vec` with a single `ScVal::Symbol` discriminant (e.g., `["Yes"]`).
 
 ---
 
-## Governance Contract Events
+## Governance Contract
 
-Contract prefix: `"gov"` (`symbol_short!("gov")`)
+Contract tag: **`gov`**
 
-| Event | Topics | Data | Description |
-|-------|--------|------|-------------|
-| `initialized` | `("gov", "init")` | `(admin: Address, token: Address)` | Emitted once on contract initialization |
-| `proposal_created` | `("gov", "created")` | `(id: u64, proposer: Address, title: String, quorum: i128, end_time: u64)` | New proposal created |
-| `vote_cast` | `("gov", "voted")` | `(proposal_id: u64, voter: Address, vote: Vote, weight: i128)` | Vote cast on a proposal |
-| `proposal_finalized` | `("gov", "final")` | `(proposal_id: u64, state: ProposalState)` | Proposal finalized (Passed or Rejected) |
-| `proposal_executed` | `("gov", "exec")` | `(proposal_id: u64, admin: Address)` | Passed proposal executed by admin |
-| `proposal_cancelled` | `("gov", "cancel")` | `(proposal_id: u64, admin: Address)` | Active proposal cancelled by admin |
-| `quorum_updated` | `("gov", "quorum")` | `(proposal_id: u64, old_quorum: i128, new_quorum: i128)` | Proposal quorum updated by admin |
-| `admin_transferred` | `("gov", "admin")` | `(old_admin: Address, new_admin: Address)` | Admin transfer completed (legacy single-step) |
-| `admin_transfer_initiated` | `("gov", "admint")` | `(current_admin: Address, pending_admin: Address)` | Two-step admin transfer initiated |
-| `admin_transfer_completed` | `("gov", "admina")` | `(previous_admin: Address, new_admin: Address)` | Two-step admin transfer completed |
-| `paused` | `("gov", "paused")` | `admin: Address` | Contract paused by admin |
-| `unpaused` | `("gov", "unpause")` | `admin: Address` | Contract unpaused by admin |
+### `initialized`
 
----
+Emitted once when the governance contract is first set up.
 
-## Standardized Schema: `admin_transferred`
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"init"` |
 
-Both contracts emit an admin transfer event with the **same data schema**:
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| admin | 0 | Address | Initial admin address |
+| token | 1 | Address | Governance token contract address |
 
-- **Topics:** `("<contract_prefix>", "admin")`
-- **Data:** `(old_admin: Address, new_admin: Address)`
-
-This consistent schema allows indexers to handle admin transfers uniformly across both contracts by filtering on the second topic `"admin"`.
+```json
+{
+  "topics": ["gov", "init"],
+  "data": ["GABC...ADMIN", "CABC...TOKEN"]
+}
+```
 
 ---
 
-## Indexing Notes
+### `proposal_created`
 
-- All topics use `symbol_short!` (max 9 ASCII chars).
-- Events are emitted via `env.events().publish(topics, data)`.
-- Off-chain indexers should filter by the first topic (`"token"` or `"gov"`) to distinguish contract sources.
+Emitted when a new proposal is submitted.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"created"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| id | 0 | u64 | Monotonically increasing proposal ID |
+| proposer | 1 | Address | Address that created the proposal |
+| title | 2 | String | Proposal title (1–128 chars) |
+| quorum | 3 | i128 | Minimum votes required for validity |
+| end_time | 4 | u64 | Unix timestamp when voting closes |
+
+```json
+{
+  "topics": ["gov", "created"],
+  "data": [1, "GABC...PROPOSER", "Increase treasury allocation", 1000000, 1748700000]
+}
+```
+
+---
+
+### `vote_cast`
+
+Emitted each time an address casts a vote.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"voted"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| proposal_id | 0 | u64 | Target proposal ID |
+| voter | 1 | Address | Voter's address |
+| vote | 2 | Enum | `"Yes"` \| `"No"` \| `"Abstain"` |
+| weight | 3 | i128 | Token balance used as vote weight |
+
+```json
+{
+  "topics": ["gov", "voted"],
+  "data": [1, "GABC...VOTER", ["Yes"], 5000000]
+}
+```
+
+---
+
+### `proposal_finalized`
+
+Emitted when a proposal's voting period ends and its outcome is recorded.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"final"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| proposal_id | 0 | u64 | Finalized proposal ID |
+| state | 1 | Enum | `"Passed"` \| `"Rejected"` |
+
+```json
+{
+  "topics": ["gov", "final"],
+  "data": [1, ["Passed"]]
+}
+```
+
+---
+
+### `proposal_executed`
+
+Emitted when a passed proposal is executed by the admin.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"exec"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| proposal_id | 0 | u64 | Executed proposal ID |
+| admin | 1 | Address | Admin that triggered execution |
+
+```json
+{
+  "topics": ["gov", "exec"],
+  "data": [1, "GABC...ADMIN"]
+}
+```
+
+---
+
+### `proposal_cancelled`
+
+Emitted when the admin cancels an active proposal.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"cancel"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| proposal_id | 0 | u64 | Cancelled proposal ID |
+| admin | 1 | Address | Admin that cancelled |
+
+```json
+{
+  "topics": ["gov", "cancel"],
+  "data": [1, "GABC...ADMIN"]
+}
+```
+
+---
+
+### `quorum_updated`
+
+Emitted when the quorum threshold for a proposal is changed.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"quorum"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| proposal_id | 0 | u64 | Affected proposal ID |
+| old_quorum | 1 | i128 | Previous quorum value |
+| new_quorum | 2 | i128 | Updated quorum value |
+
+```json
+{
+  "topics": ["gov", "quorum"],
+  "data": [1, 1000000, 2000000]
+}
+```
+
+---
+
+### `admin_transfer_initiated`
+
+Emitted when the current admin nominates a pending admin (two-step transfer).
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"admint"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| current_admin | 0 | Address | Existing admin |
+| pending_admin | 1 | Address | Nominated successor |
+
+```json
+{
+  "topics": ["gov", "admint"],
+  "data": ["GABC...OLD", "GABC...NEW"]
+}
+```
+
+---
+
+### `admin_transfer_completed`
+
+Emitted when the pending admin accepts and the transfer is finalised.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"admina"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| previous_admin | 0 | Address | Former admin |
+| new_admin | 1 | Address | New admin |
+
+```json
+{
+  "topics": ["gov", "admina"],
+  "data": ["GABC...OLD", "GABC...NEW"]
+}
+```
+
+---
+
+### `admin_transferred` (direct)
+
+Emitted on an immediate (single-step) admin transfer.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"admin"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| old_admin | 0 | Address | Previous admin |
+| new_admin | 1 | Address | New admin |
+
+```json
+{
+  "topics": ["gov", "admin"],
+  "data": ["GABC...OLD", "GABC...NEW"]
+}
+```
+
+---
+
+### `paused`
+
+Emitted when the admin pauses the contract.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"paused"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| admin | — | Address | Admin that paused (scalar, not tuple) |
+
+```json
+{
+  "topics": ["gov", "paused"],
+  "data": "GABC...ADMIN"
+}
+```
+
+---
+
+### `unpaused`
+
+Emitted when the admin resumes the contract.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"gov"` |
+| event_tag | 1 | Symbol | `"unpause"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| admin | — | Address | Admin that unpaused (scalar, not tuple) |
+
+```json
+{
+  "topics": ["gov", "unpause"],
+  "data": "GABC...ADMIN"
+}
+```
+
+---
+
+## Token Contract
+
+Contract tag: **`token`**
+
+### `initialized`
+
+Emitted once when the token contract is deployed and configured.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"token"` |
+| event_tag | 1 | Symbol | `"init"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| admin | 0 | Address | Admin / initial supply recipient |
+| supply | 1 | i128 | Total tokens minted at init |
+
+```json
+{
+  "topics": ["token", "init"],
+  "data": ["GABC...ADMIN", 1000000000]
+}
+```
+
+---
+
+### `transfer`
+
+Emitted on every token transfer (including `transfer_from`).
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"token"` |
+| event_tag | 1 | Symbol | `"xfer"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| from | 0 | Address | Sender |
+| to | 1 | Address | Recipient |
+| amount | 2 | i128 | Token amount transferred |
+
+```json
+{
+  "topics": ["token", "xfer"],
+  "data": ["GABC...FROM", "GABC...TO", 500000]
+}
+```
+
+---
+
+### `approval`
+
+Emitted when a spender allowance is set.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"token"` |
+| event_tag | 1 | Symbol | `"approve"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| owner | 0 | Address | Token owner granting allowance |
+| spender | 1 | Address | Approved spender |
+| amount | 2 | i128 | Approved amount |
+
+```json
+{
+  "topics": ["token", "approve"],
+  "data": ["GABC...OWNER", "GABC...SPENDER", 100000]
+}
+```
+
+---
+
+### `minted`
+
+Emitted when the admin mints new tokens.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"token"` |
+| event_tag | 1 | Symbol | `"mint"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| admin | 0 | Address | Admin that minted |
+| to | 1 | Address | Recipient of minted tokens |
+| amount | 2 | i128 | Amount minted |
+
+```json
+{
+  "topics": ["token", "mint"],
+  "data": ["GABC...ADMIN", "GABC...RECIPIENT", 250000]
+}
+```
+
+---
+
+### `burned`
+
+Emitted when tokens are burned (by admin or by owner via `burn_self`).
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"token"` |
+| event_tag | 1 | Symbol | `"burn"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| admin | 0 | Address | Admin (or owner for `burn_self`) |
+| from | 1 | Address | Account tokens are burned from |
+| amount | 2 | i128 | Amount burned |
+
+```json
+{
+  "topics": ["token", "burn"],
+  "data": ["GABC...ADMIN", "GABC...FROM", 100000]
+}
+```
+
+---
+
+### `admin_transferred`
+
+Emitted when the token admin is changed.
+
+| Field | Topic index | Type | Description |
+|-------|-------------|------|-------------|
+| contract_tag | 0 | Symbol | `"token"` |
+| event_tag | 1 | Symbol | `"admin"` |
+
+| Field | Data index | Type | Description |
+|-------|------------|------|-------------|
+| old_admin | 0 | Address | Previous admin |
+| new_admin | 1 | Address | New admin |
+
+```json
+{
+  "topics": ["token", "admin"],
+  "data": ["GABC...OLD", "GABC...NEW"]
+}
+```
+
+---
+
+## Quick Reference
+
+| Contract | Event | Topics | Data fields |
+|----------|-------|--------|-------------|
+| gov | initialized | `gov`, `init` | admin, token |
+| gov | proposal_created | `gov`, `created` | id, proposer, title, quorum, end_time |
+| gov | vote_cast | `gov`, `voted` | proposal_id, voter, vote, weight |
+| gov | proposal_finalized | `gov`, `final` | proposal_id, state |
+| gov | proposal_executed | `gov`, `exec` | proposal_id, admin |
+| gov | proposal_cancelled | `gov`, `cancel` | proposal_id, admin |
+| gov | quorum_updated | `gov`, `quorum` | proposal_id, old_quorum, new_quorum |
+| gov | admin_transfer_initiated | `gov`, `admint` | current_admin, pending_admin |
+| gov | admin_transfer_completed | `gov`, `admina` | previous_admin, new_admin |
+| gov | admin_transferred | `gov`, `admin` | old_admin, new_admin |
+| gov | paused | `gov`, `paused` | admin |
+| gov | unpaused | `gov`, `unpause` | admin |
+| token | initialized | `token`, `init` | admin, supply |
+| token | transfer | `token`, `xfer` | from, to, amount |
+| token | approval | `token`, `approve` | owner, spender, amount |
+| token | minted | `token`, `mint` | admin, to, amount |
+| token | burned | `token`, `burn` | admin, from, amount |
+| token | admin_transferred | `token`, `admin` | old_admin, new_admin |
