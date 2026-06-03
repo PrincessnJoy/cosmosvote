@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# ── Stage 1: builder ──────────────────────────────────────────────────────────
-# Pinned digest for reproducibility
+# ── Builder stage ────────────────────────────────────────────────────────────
 FROM rust:1.75-slim-bookworm@sha256:70c2a016184099262fd7cee46f3d35fec3568c45c62f87e37f7f665f766b1f74 AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,15 +23,23 @@ RUN mkdir -p contracts/governance/src contracts/token/src \
     && cargo fetch || true
 
 COPY . .
-
 RUN cargo build --release --target wasm32-unknown-unknown
 
-# ── Stage 2: runtime ──────────────────────────────────────────────────────────
-# Minimal image — contains only the compiled WASM artifacts
+# ── Runtime stage ────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim@sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb AS runtime
 
-WORKDIR /app/artifacts
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/wasm32-unknown-unknown/release/*.wasm ./
+# Install Stellar CLI
+RUN curl -sSL https://github.com/stellar/stellar-cli/releases/download/v22.0.1/stellar-cli-22.0.1-x86_64-unknown-linux-gnu.tar.gz \
+    | tar -xz -C /usr/local/bin
 
-CMD ["ls", "-lh", "/app/artifacts"]
+WORKDIR /app
+
+# Copy only the compiled WASM artifacts from the builder
+COPY --from=builder /app/target/wasm32-unknown-unknown/release/*.wasm ./wasm/
+
+CMD ["stellar", "--version"]
