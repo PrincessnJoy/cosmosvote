@@ -27,8 +27,17 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
 
   useEffect(() => {
     if (!walletAddress) return;
-    fetchHasVoted(Number(p.id), walletAddress).then(setHasVoted);
-    fetchVoteRecord(Number(p.id), walletAddress).then(setVoteRecord);
+    onAnnounce?.('Checking vote status…');
+    Promise.all([
+      fetchHasVoted(Number(p.id), walletAddress),
+      fetchVoteRecord(Number(p.id), walletAddress),
+    ]).then(([voted, record]) => {
+      setHasVoted(voted);
+      setVoteRecord(record);
+      onAnnounce?.(voted && record
+        ? `You previously voted ${record.vote} on this proposal.`
+        : 'You have not voted on this proposal.');
+    });
   }, [p.id, walletAddress]);
 
   // Focus the close button on open
@@ -103,6 +112,9 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
         aria-labelledby="proposal-dialog-title"
         style={{ background: '#fff', borderRadius: 12, padding: '2rem', maxWidth: 600, width: '90%', maxHeight: '80vh', overflowY: 'auto' }}
         onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="detail-title"
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
           <h2 id="proposal-dialog-title" style={{ margin: 0 }}>Proposal #{String(p.id)}</h2>

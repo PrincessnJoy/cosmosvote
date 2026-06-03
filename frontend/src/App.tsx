@@ -7,8 +7,14 @@ import { ProposalDetail } from './components/ProposalDetail';
 import { useToast } from './components/ToastContext';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
+import './responsive.css';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
+const PAGE_SIZE = 20;
+
+async function connect() {
+  // wallet connection placeholder
+}
 
 // Admin address — in production this would come from the contract or environment config
 const ADMIN_ADDRESS = import.meta.env.VITE_ADMIN_ADDRESS ?? null;
@@ -69,6 +75,16 @@ export default function App() {
     });
   }, []);
 
+  const connect = () => {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) {
+      setWalletAddress(addr);
+      fetchTokenBalance(addr)
+        .then(setTokenBalance)
+        .catch(() => setTokenBalance(null));
+    }
+  };
+
   const filtered = useMemo(() => {
     return proposals.filter(p => {
       const matchState = stateFilter === 'All' || p.state === stateFilter;
@@ -77,6 +93,12 @@ export default function App() {
       return matchState && matchSearch;
     });
   }, [proposals, search, stateFilter]);
+
+  const handleProposalCreated = (id: number) => {
+    setShowNewForm(false);
+    // In a real implementation, fetch the new proposal and navigate to it
+    setAnnouncement(`Proposal #${id} created. Refreshing list…`);
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
@@ -100,7 +122,7 @@ export default function App() {
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-header-sub)' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
               {tokenBalance !== null && (
-                <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
+                <div className={styles.headerBalance}>{formatTokenAmount(tokenBalance, decimals)}</div>
               )}
               <button
                 onClick={disconnect}
@@ -190,6 +212,17 @@ export default function App() {
             }} />
           ))}
         </div>
+
+        {!loading && filtered.length > 0 && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={filtered.length}
+            pageSize={PAGE_SIZE}
+            onPrev={() => setPage(p => Math.max(1, p - 1))}
+            onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+          />
+        )}
       </main>
       </ErrorBoundary>
 
