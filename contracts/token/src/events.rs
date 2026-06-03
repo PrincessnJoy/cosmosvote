@@ -47,17 +47,17 @@ impl TokenEvents {
         );
     }
 
-    pub fn paused(env: &Env, admin: &Address) {
+    pub fn delegated(env: &Env, owner: &Address, delegate: &Address) {
         env.events().publish(
-            (symbol_short!("token"), symbol_short!("paused")),
-            admin.clone(),
+            (symbol_short!("token"), symbol_short!("delegate")),
+            (owner.clone(), delegate.clone()),
         );
     }
 
-    pub fn unpaused(env: &Env, admin: &Address) {
+    pub fn undelegated(env: &Env, owner: &Address) {
         env.events().publish(
-            (symbol_short!("token"), symbol_short!("unpause")),
-            admin.clone(),
+            (symbol_short!("token"), symbol_short!("undelegt")),
+            owner.clone(),
         );
     }
 }
