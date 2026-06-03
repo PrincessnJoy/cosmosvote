@@ -152,11 +152,73 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
         </div>
 
         {walletAddress && (
-          <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem' }}>
+          <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem' }}>
             {hasVoted === null ? 'Checking vote status...' :
               hasVoted && voteRecord
                 ? `You voted ${voteRecord.vote} with weight ${formatTokenAmount(voteRecord.weight, decimals)}`
                 : 'You have not voted on this proposal'}
+          </div>
+        )}
+
+        {votingMessage && (
+          <div style={{ padding: '0.75rem', background: '#dcfce7', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem', color: '#166534' }}>
+            {votingMessage}
+          </div>
+        )}
+
+        {votingError && (
+          <div style={{ padding: '0.75rem', background: '#fee2e2', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem', color: '#991b1b' }}>
+            {votingError}
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+          {[
+            { label: 'Vote Yes', vote: 'Yes' as const, color: '#16a34a', disabled: !canVote },
+            { label: 'Vote No', vote: 'No' as const, color: '#dc2626', disabled: !canVote },
+            { label: 'Abstain', vote: 'Abstain' as const, color: '#6b7280', disabled: !canVote },
+          ].map(({ label, vote, color, disabled }) => (
+            <button
+              key={vote}
+              onClick={() => handleVote(vote)}
+              disabled={disabled || isVoting}
+              style={{
+                padding: '0.75rem',
+                background: disabled || isVoting ? '#e5e7eb' : color,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 8,
+                cursor: disabled || isVoting ? 'not-allowed' : 'pointer',
+                fontWeight: 500,
+                opacity: disabled || isVoting ? 0.6 : 1,
+              }}
+            >
+              {isVoting ? 'Submitting...' : label}
+            </button>
+          ))}
+        </div>
+
+        {!walletAddress && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#fef3c7', borderRadius: 8, fontSize: '0.875rem', color: '#92400e' }}>
+            ℹ️ Connect your wallet to vote on this proposal
+          </div>
+        )}
+
+        {walletAddress && hasVoted && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#e0e7ff', borderRadius: 8, fontSize: '0.875rem', color: '#3730a3' }}>
+            ✓ You have already voted on this proposal
+          </div>
+        )}
+
+        {walletAddress && !isProposalActive && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#f3e8ff', borderRadius: 8, fontSize: '0.875rem', color: '#6b21a8' }}>
+            ℹ️ This proposal is not active and cannot receive new votes
+          </div>
+        )}
+
+        {walletAddress && isProposalActive && !votingOpen && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#f3e8ff', borderRadius: 8, fontSize: '0.875rem', color: '#6b21a8' }}>
+            ℹ️ Voting is not open yet or has ended for this proposal
           </div>
         )}
       </div>
