@@ -1,51 +1,72 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenDecimals } from './api';
+import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals, checkRpcReachability } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
+import { useToast } from './components/ToastContext';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
-type Theme = 'light' | 'dark';
-
-function getInitialTheme(): Theme {
-  const stored = localStorage.getItem('theme') as Theme | null;
-  if (stored === 'light' || stored === 'dark') return stored;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
-async function connect() {
-  // wallet connection placeholder
-}
+// Admin address — in production this would come from the contract or environment config
+const ADMIN_ADDRESS = import.meta.env.VITE_ADMIN_ADDRESS ?? null;
 
 export default function App() {
+  const { walletAddress, walletName, tokenBalance, showModal, openModal, disconnect } = useWallet();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState('');
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
-  const [walletAddress] = useState<string | null>(null);
-  const [tokenBalance] = useState<bigint | null>(null);
+  const triggerRef = useRef<HTMLElement>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
-  const [theme, setTheme] = useState<Theme>(getInitialTheme);
+  const [rpcWarning, setRpcWarning] = useState<string | null>(null);
+
+  const connect = () => {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) setWalletAddress(addr);
+  };
+
+  const disconnect = () => setWalletAddress(null);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+    if (!walletAddress) { setTokenBalance(null); return; }
+    fetchTokenBalance(walletAddress).then(setTokenBalance).catch(() => setTokenBalance(null));
+  }, [walletAddress]);
+
+  const refreshProposals = () => {
+    fetchAllProposals().then(setProposals).catch(() => {});
+  };
 
   useEffect(() => {
-    Promise.all([fetchAllProposals(), fetchTokenDecimals()])
+    Promise.all([
+      fetchAllProposals((loaded, total) => setProgress({ loaded, total })),
+      fetchTokenDecimals(),
+    ])
       .then(([props, decs]) => {
         setProposals(props);
         setDecimals(decs);
+        setAnnouncement(`${props.length} proposal${props.length !== 1 ? 's' : ''} loaded.`);
+      })
+      .catch(e => {
+        setError(String(e));
+        setAnnouncement('');
       })
       .catch(e => setError(String(e)))
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setProgress(null); });
+  }, []);
+
+  useEffect(() => {
+    checkRpcReachability().catch(error => {
+      setRpcWarning(String(error));
+    });
   }, []);
 
   const filtered = useMemo(() => {
@@ -58,7 +79,9 @@ export default function App() {
   }, [proposals, search, stateFilter]);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-page)', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
+      <AriaLive polite={announcement} assertive={error ?? undefined} />
+
       {/* Header */}
       <header style={{ background: 'var(--bg-header)', color: 'var(--text-header)', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
@@ -79,10 +102,16 @@ export default function App() {
               {tokenBalance !== null && (
                 <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
               )}
+              <button
+                onClick={disconnect}
+                style={{ marginTop: '0.25rem', background: 'none', color: '#94a3b8', border: '1px solid #475569', borderRadius: 4, padding: '0.2rem 0.5rem', cursor: 'pointer', fontSize: '0.7rem' }}
+              >
+                Disconnect
+              </button>
             </div>
           ) : (
             <button
-              onClick={connect}
+              onClick={openModal}
               style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
             >
               Connect Wallet
@@ -91,6 +120,7 @@ export default function App() {
         </div>
       </header>
 
+      <ErrorBoundary>
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1rem' }}>
         {/* Filters */}
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
@@ -113,6 +143,12 @@ export default function App() {
           </select>
         </div>
 
+        {rpcWarning && (
+          <div style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: 8, padding: '1rem', marginBottom: '1rem' }}>
+            <strong>RPC warning:</strong> {rpcWarning}
+          </div>
+        )}
+
         {/* Stats bar */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           {[
@@ -129,11 +165,16 @@ export default function App() {
         </div>
 
         {/* Content */}
-        {error && <p style={{ textAlign: 'center', color: 'var(--error-color)', marginBottom: '1rem' }}>Error: {error}</p>}
+        {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
 
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
+              {progress && (
+                <p style={{ textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
+                  Loading proposals… {progress.loaded}/{progress.total}
+                </p>
+              )}
               <ProposalSkeleton />
               <ProposalSkeleton />
               <ProposalSkeleton />
@@ -143,19 +184,27 @@ export default function App() {
             <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} onClick={(e) => {
+              triggerRef.current = e?.currentTarget as HTMLElement ?? null;
+              setSelected(p);
+            }} />
           ))}
         </div>
       </main>
+      </ErrorBoundary>
 
       {selected && (
         <ProposalDetail
           proposal={selected}
           decimals={decimals}
           walletAddress={walletAddress}
+          adminAddress={ADMIN_ADDRESS}
           onClose={() => setSelected(null)}
+          triggerRef={triggerRef}
         />
       )}
+
+      {showModal && <ConnectWalletModal />}
     </div>
   );
 }

@@ -2,7 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
+import { WalletProvider } from './WalletContext';
 import { validateConfig } from './config';
+import { ToastProvider } from './components/ToastContext';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found');
@@ -11,7 +13,9 @@ try {
   validateConfig();
   createRoot(root).render(
     <StrictMode>
-      <App />
+      <ToastProvider>
+        <App />
+      </ToastProvider>
     </StrictMode>
   );
 } catch (error) {
