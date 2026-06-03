@@ -11,6 +11,7 @@ import { formatTokenAmount } from './utils';
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
 export default function App() {
+  const { walletAddress, walletName, tokenBalance, showModal, openModal, disconnect } = useWallet();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
@@ -92,7 +93,7 @@ export default function App() {
             </div>
           ) : (
             <button
-              onClick={connect}
+              onClick={openModal}
               style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
             >
               Connect Wallet
@@ -147,7 +148,7 @@ export default function App() {
 
         {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
-        
+
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
@@ -183,6 +184,8 @@ export default function App() {
           triggerRef={triggerRef}
         />
       )}
+
+      {showModal && <ConnectWalletModal />}
     </div>
   );
 }
