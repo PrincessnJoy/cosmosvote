@@ -91,6 +91,8 @@ pub struct Proposal {
     pub end_time: u64,
     pub state: ProposalState,
     pub snapshot_ledger: u32,
+    /// Optional treasury disbursement to execute on proposal execution.
+    pub treasury_action: Option<TreasuryAction>,
 }
 
 // ---------------------------------------------------------------------------
@@ -121,4 +123,25 @@ pub struct GovernanceConfig {
     pub proposal_cooldown: u64,
     pub restrict_admin_vote: bool,
     pub paused: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Treasury
+// ---------------------------------------------------------------------------
+
+/// Asset to disburse — native XLM or a SEP-41 token.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub enum TreasuryAsset {
+    Native,
+    Token(Address),
+}
+
+/// Optional payload attached to a proposal for on-execution treasury disbursement.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct TreasuryAction {
+    pub recipient: Address,
+    pub amount: i128,
+    pub asset: TreasuryAsset,
 }
