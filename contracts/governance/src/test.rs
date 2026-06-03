@@ -621,3 +621,104 @@ fn test_execute_with_treasury_action() {
     assert!(p.treasury_action.is_some());
     assert_eq!(p.state, ProposalState::Passed);
 }
+
+// ---------------------------------------------------------------------------
+// amend_proposal
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_amend_proposal_success() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+
+    gov.amend_proposal(
+        &voter,
+        &id,
+        &String::from_str(&env, "Updated Title"),
+        &String::from_str(&env, "Updated description with more detail"),
+    );
+
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.title, String::from_str(&env, "Updated Title"));
+    assert_eq!(proposal.description, String::from_str(&env, "Updated description with more detail"));
+}
+
+#[test]
+fn test_amend_proposal_not_proposer_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, voter2) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+
+    let result = gov.try_amend_proposal(
+        &voter2,
+        &id,
+        &String::from_str(&env, "Hijacked Title"),
+        &String::from_str(&env, "desc"),
+    );
+    assert_eq!(result, Err(Ok(ContractError::NotProposer)));
+}
+
+#[test]
+fn test_amend_proposal_after_votes_cast_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, voter2) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+
+    gov.cast_vote(&voter2, &id, &Vote::Yes);
+
+    let result = gov.try_amend_proposal(
+        &voter,
+        &id,
+        &String::from_str(&env, "New Title"),
+        &String::from_str(&env, "desc"),
+    );
+    assert_eq!(result, Err(Ok(ContractError::VotesAlreadyCast)));
+}
+
+#[test]
+fn test_amend_proposal_not_active_fails() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+
+    gov.cancel(&admin, &id);
+
+    let result = gov.try_amend_proposal(
+        &voter,
+        &id,
+        &String::from_str(&env, "New Title"),
+        &String::from_str(&env, "desc"),
+    );
+    assert_eq!(result, Err(Ok(ContractError::ProposalNotActive)));
+}
+
+#[test]
+fn test_amend_proposal_invalid_title_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+
+    let result = gov.try_amend_proposal(
+        &voter,
+        &id,
+        &String::from_str(&env, ""),
+        &String::from_str(&env, "valid desc"),
+    );
+    assert_eq!(result, Err(Ok(ContractError::InvalidTitle)));
+}
+
+#[test]
+fn test_amend_proposal_invalid_description_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+
+    let result = gov.try_amend_proposal(
+        &voter,
+        &id,
+        &String::from_str(&env, "Valid Title"),
+        &String::from_str(&env, ""),
+    );
+    assert_eq!(result, Err(Ok(ContractError::InvalidDescription)));
+}
