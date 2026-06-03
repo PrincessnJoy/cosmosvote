@@ -85,7 +85,9 @@ export async function fetchProposal(id: number): Promise<Proposal> {
   return raw as Proposal;
 }
 
-export async function fetchAllProposals(): Promise<Proposal[]> {
+export async function fetchAllProposals(
+  onProgress?: (loaded: number, total: number) => void
+): Promise<Proposal[]> {
   const count = await fetchProposalCount();
   const results = await Promise.allSettled(
     Array.from({ length: count }, (_, i) => fetchProposal(i))

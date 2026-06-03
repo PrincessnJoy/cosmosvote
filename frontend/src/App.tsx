@@ -13,6 +13,7 @@ const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed',
 export default function App() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
@@ -40,13 +41,16 @@ export default function App() {
   };
 
   useEffect(() => {
-    Promise.all([fetchAllProposals(), fetchTokenDecimals()])
+    Promise.all([
+      fetchAllProposals((loaded, total) => setProgress({ loaded, total })),
+      fetchTokenDecimals(),
+    ])
       .then(([props, decs]) => {
         setProposals(props);
         setDecimals(decs);
       })
       .catch(e => setError(String(e)))
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setProgress(null); });
   }, []);
 
   useEffect(() => {
@@ -147,6 +151,11 @@ export default function App() {
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
+              {progress && (
+                <p style={{ textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
+                  Loading proposals… {progress.loaded}/{progress.total}
+                </p>
+              )}
               <ProposalSkeleton />
               <ProposalSkeleton />
               <ProposalSkeleton />
