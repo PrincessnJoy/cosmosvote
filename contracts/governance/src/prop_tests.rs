@@ -5,7 +5,7 @@
 #![cfg(test)]
 
 use proptest::prelude::*;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, String};
 
 use crate::{
     types::{ProposalState, Vote},
@@ -31,7 +31,13 @@ proptest! {
 
         let token_id = env.register(TokenContract, ());
         let token = TokenContractClient::new(&env, &token_id);
-        token.initialize(&admin, &1_000_000_000i128);
+        token.initialize(
+            &admin,
+            &1_000_000_000i128,
+            &String::from_str(&env, "CosmosVote"),
+            &String::from_str(&env, "VOTE"),
+            &7u32,
+        );
         token.mint(&admin, &voter, &yes_weight);
 
         let gov_id = env.register(GovernanceContract, ());
@@ -73,7 +79,13 @@ proptest! {
 
         let token_id = env.register(TokenContract, ());
         let token = TokenContractClient::new(&env, &token_id);
-        token.initialize(&admin, &supply);
+        token.initialize(
+            &admin,
+            &supply,
+            &String::from_str(&env, "CosmosVote"),
+            &String::from_str(&env, "VOTE"),
+            &7u32,
+        );
         token.mint(&admin, &voter_a, &weight_a);
         token.mint(&admin, &voter_b, &weight_b);
 
@@ -113,7 +125,13 @@ proptest! {
 
         let token_id = env.register(TokenContract, ());
         let token = TokenContractClient::new(&env, &token_id);
-        token.initialize(&admin, &1_000_000_000i128);
+        token.initialize(
+            &admin,
+            &1_000_000_000i128,
+            &String::from_str(&env, "CosmosVote"),
+            &String::from_str(&env, "VOTE"),
+            &7u32,
+        );
         token.mint(&admin, &voter_yes, &yes_weight);
         token.mint(&admin, &voter_no, &no_weight);
 

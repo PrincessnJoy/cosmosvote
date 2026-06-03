@@ -31,13 +31,15 @@ use types::{ContractError, ContractState, GovernanceConfig, Proposal, ProposalSt
 // ---------------------------------------------------------------------------
 
 mod token_interface {
-    use soroban_sdk::{contractclient, Address, Env};
+    use soroban_sdk::{contractclient, Address, Env, Vec};
 
     #[contractclient(name = "TokenClient")]
     pub trait TokenInterface {
         fn balance(env: Env, owner: Address) -> i128;
         fn balance_at(env: Env, owner: Address, ledger: u64) -> i128;
         fn total_supply(env: Env) -> i128;
+        fn get_delegation(env: Env, owner: Address) -> Option<Address>;
+        fn get_delegated_weight(env: Env, voter: Address, delegators: Vec<Address>) -> i128;
     }
 }
 
@@ -374,7 +376,19 @@ impl GovernanceContract {
         }
 
         let token = GovernanceStorage::voting_token(&env);
-        let weight = TokenClient::new(&env, &token).balance_at(&voter, proposal.snapshot_ledger);
+        let token_client = TokenClient::new(&env, &token);
+
+        // If the voter has delegated their power away, they cannot vote directly.
+        // Their delegate will vote with the accumulated weight.
+        if token_client.get_delegation(&voter).is_some() {
+            return Err(ContractError::NoVotingPower);
+        }
+
+        // Weight = voter's own balance (delegators' balances are added via get_delegated_weight).
+        // Since we cannot enumerate all delegators on-chain, governance uses an empty list here;
+        // the voter's own balance is always included. Delegators who want their weight counted
+        // must have their delegate cast the vote on their behalf.
+        let weight = token_client.get_delegated_weight(&voter, &Vec::new(&env));
         if weight <= 0 {
             return Err(ContractError::NoVotingPower);
         }
