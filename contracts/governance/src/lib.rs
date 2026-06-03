@@ -411,6 +411,7 @@ impl GovernanceContract {
 
         GovernanceStorage::set_has_voted(&env, proposal_id, &voter, true);
         GovernanceStorage::set_vote_record(&env, proposal_id, &voter, &VoteRecord { vote: vote.clone(), weight });
+        proposal.voter_count += 1;
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
 
         GovernanceEvents::vote_cast(&env, proposal_id, &voter, &vote, weight);
