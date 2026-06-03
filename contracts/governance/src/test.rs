@@ -382,7 +382,7 @@ fn test_vote_after_period_fails() {
     let (gov, _, _, voter, _) = setup(&env);
     let id = make_proposal(&gov, &env, &voter);
     let proposal = gov.get_proposal(&id);
-    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    env.ledger().set_timestamp(proposal.end_time + 1);
     let result = gov.try_cast_vote(&voter, &id, &Vote::Yes);
     assert_eq!(result, Err(Ok(ContractError::VotingPeriodEnded)));
 }
@@ -408,7 +408,7 @@ fn test_finalise_passed() {
     let id = make_proposal(&gov, &env, &voter);
     gov.cast_vote(&voter, &id, &Vote::Yes);
     let proposal = gov.get_proposal(&id);
-    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    env.ledger().set_timestamp(proposal.end_time + 1);
     gov.finalise(&id);
     let updated = gov.get_proposal(&id);
     assert_eq!(updated.state, ProposalState::Passed);
@@ -422,7 +422,7 @@ fn test_finalise_rejected_quorum_not_met() {
     // voter2 has 5M, quorum is 5M but votes_yes must exceed votes_no
     gov.cast_vote(&voter2, &id, &Vote::No);
     let proposal = gov.get_proposal(&id);
-    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    env.ledger().set_timestamp(proposal.end_time + 1);
     gov.finalise(&id);
     let updated = gov.get_proposal(&id);
     assert_eq!(updated.state, ProposalState::Rejected);
@@ -474,7 +474,7 @@ fn test_finalise_tie_rejected() {
     gov.cast_vote(&voter, &id, &Vote::Yes);
     gov.cast_vote(&voter2, &id, &Vote::No);
     let proposal = gov.get_proposal(&id);
-    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    env.ledger().set_timestamp(proposal.end_time + 1);
     gov.finalise(&id);
     let updated = gov.get_proposal(&id);
     assert_eq!(updated.state, ProposalState::Rejected);
@@ -491,7 +491,7 @@ fn test_execute_passed_proposal() {
     let id = make_proposal(&gov, &env, &voter);
     gov.cast_vote(&voter, &id, &Vote::Yes);
     let proposal = gov.get_proposal(&id);
-    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    env.ledger().set_timestamp(proposal.end_time + 1);
     gov.finalise(&id);
     gov.execute(&admin, &id);
     let updated = gov.get_proposal(&id);
@@ -631,6 +631,57 @@ fn test_pause_unpause() {
 }
 
 #[test]
+fn test_pause_blocks_cast_vote() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    
+    gov.pause(&admin);
+    let result = gov.try_cast_vote(&voter, &id, &Vote::Yes);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+}
+
+#[test]
+fn test_pause_blocks_finalise() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    
+    // Jump to end of voting period
+    env.ledger().set_timestamp(env.ledger().timestamp() + 604_801);
+    
+    gov.pause(&admin);
+    let result = gov.try_finalise(&id);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+}
+
+#[test]
+fn test_pause_does_not_block_execute_cancel() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    
+    gov.pause(&admin);
+    
+    // Cancel should still work (admin emergency action)
+    gov.cancel(&admin, &id);
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.state, ProposalState::Cancelled);
+    
+    // Execute should also work if it was passed
+    gov.unpause(&admin);
+    let id2 = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id2, &Vote::Yes);
+    env.ledger().set_timestamp(env.ledger().timestamp() + 604_801);
+    gov.finalise(&id2);
+    
+    gov.pause(&admin);
+    gov.execute(&admin, &id2);
+    let proposal2 = gov.get_proposal(&id2);
+    assert_eq!(proposal2.state, ProposalState::Executed);
+}
+
+#[test]
 fn test_update_quorum() {
     let env = Env::default();
     let (gov, _, admin, voter, _) = setup(&env);
@@ -664,6 +715,33 @@ fn test_update_quorum_with_votes_fails() {
     // Attempt to update quorum
     let result = gov.try_update_quorum(&admin, &id, &1_000_000i128);
     assert_eq!(result, Err(Ok(ContractError::QuorumUpdateNotAllowed)));
+}
+
+#[test]
+fn test_update_quorum_nonexistent_proposal_fails() {
+    let env = Env::default();
+    let (gov, _, admin, _, _) = setup(&env);
+    let result = gov.try_update_quorum(&admin, &999u64, &1_000_000i128);
+    assert_eq!(result, Err(Ok(ContractError::ProposalNotFound)));
+}
+
+#[test]
+fn test_update_quorum_zero_fails() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    let result = gov.try_update_quorum(&admin, &id, &0i128);
+    assert_eq!(result, Err(Ok(ContractError::InvalidQuorum)));
+}
+
+#[test]
+fn test_update_quorum_exceeds_supply_fails() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    // Supply is 1_000_000_000 (from setup)
+    let result = gov.try_update_quorum(&admin, &id, &1_000_000_001i128);
+    assert_eq!(result, Err(Ok(ContractError::QuorumExceedsSupply)));
 }
 
 // ---------------------------------------------------------------------------
