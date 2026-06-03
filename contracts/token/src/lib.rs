@@ -76,6 +76,10 @@ impl TokenContract {
         TokenStorage::balance(&env, &owner)
     }
 
+    pub fn balance_at(env: Env, owner: Address, _ledger: u64) -> i128 {
+        TokenStorage::balance(&env, &owner)
+    }
+
     pub fn allowance(env: Env, owner: Address, spender: Address) -> i128 {
         TokenStorage::allowance(&env, &owner, &spender)
     }
