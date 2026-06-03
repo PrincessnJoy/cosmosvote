@@ -76,5 +76,5 @@ else
   log WARN "stellar CLI not found; skipping contract inspection"
 fi
 
-log INFO "=== WASM test passed ==="
-log INFO "Full log saved to: $LOG_FILE"
+echo ""
+echo "=== WASM test passed. ==="
