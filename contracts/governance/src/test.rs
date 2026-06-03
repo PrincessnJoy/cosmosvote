@@ -444,6 +444,20 @@ fn test_transfer_admin_prevents_accidental_loss() {
 }
 
 #[test]
+fn test_transfer_admin_zero_address_fails() {
+    let env = Env::default();
+    let (gov, _, admin, _, _) = setup(&env);
+
+    // The all-zeros Stellar public key — no valid keypair can sign for it.
+    let zero_addr = Address::from_string(
+        &env,
+        &String::from_str(&env, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF"),
+    );
+    let result = gov.try_transfer_admin(&admin, &zero_addr);
+    assert_eq!(result, Err(Ok(ContractError::InvalidNewAdmin)));
+}
+
+#[test]
 fn test_pause_unpause() {
     let env = Env::default();
     let (gov, _, admin, voter, _) = setup(&env);
