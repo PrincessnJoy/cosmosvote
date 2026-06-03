@@ -277,6 +277,8 @@ pub fn finalise(env: Env, proposal_id: u64) -> Result<(), ContractError>
 
 Pass conditions: `total_votes >= quorum AND votes_yes > votes_no`
 
+The `finalise()` function is permissionless and is intended to be called by an off-chain keeper or bot after the voting period ends. This ensures proposals do not stay stuck in `Active` state even if no single voter submits the finalization transaction.
+
 ### Execute / Cancel
 
 ```rust

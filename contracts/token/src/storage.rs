@@ -29,6 +29,13 @@ pub enum TempKey {
     Allowance(Address, Address),
 }
 
+#[soroban_sdk::contracttype]
+#[derive(Clone, Debug)]
+pub struct Allowance {
+    pub amount: i128,
+    pub expiry_ledger: u32,
+}
+
 pub struct TokenStorage;
 
 impl TokenStorage {
@@ -121,15 +128,45 @@ impl TokenStorage {
     }
 
     pub fn allowance(env: &Env, owner: &Address, spender: &Address) -> i128 {
-        env.storage()
-            .temporary()
-            .get(&TempKey::Allowance(owner.clone(), spender.clone()))
+        Self::allowance_record(env, owner, spender)
+            .map(|data| data.amount)
             .unwrap_or(0)
     }
-    pub fn set_allowance(env: &Env, owner: &Address, spender: &Address, v: i128) {
+
+    pub fn allowance_record(
+        env: &Env,
+        owner: &Address,
+        spender: &Address,
+    ) -> Option<Allowance> {
+        let key = TempKey::Allowance(owner.clone(), spender.clone());
+        if let Some(data) = env.storage().temporary().get(&key) {
+            let current_ledger = env.ledger().sequence();
+            if current_ledger > data.expiry_ledger || data.amount <= 0 {
+                return None;
+            }
+            env.storage().temporary().set(&key, &data);
+            Some(data)
+        } else {
+            None
+        }
+    }
+
+    pub fn set_allowance(
+        env: &Env,
+        owner: &Address,
+        spender: &Address,
+        amount: i128,
+        expiry_ledger: u32,
+    ) {
         env.storage()
             .temporary()
-            .set(&TempKey::Allowance(owner.clone(), spender.clone()), &v);
+            .set(
+                &TempKey::Allowance(owner.clone(), spender.clone()),
+                &Allowance {
+                    amount,
+                    expiry_ledger,
+                },
+            );
     }
 
     /// Returns the delegate address for `owner`, if any.
