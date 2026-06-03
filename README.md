@@ -423,6 +423,30 @@ gov.cast_vote(&admin, &id2, &Vote::Yes); // → Ok(())
 
 ### With Docker
 
+The Dockerfile uses a **multi-stage build** to keep the final image small and free of build tooling:
+
+| Stage | Base image | Purpose |
+|-------|-----------|---------|
+| `builder` | `rust:1.75-slim-bookworm` (pinned to digest) | Compiles WASM binaries |
+| `runtime` | `debian:bookworm-slim` (pinned to digest) | Ships only `*.wasm` artifacts + Stellar CLI |
+
+Both base images are pinned to a specific digest for reproducible builds.
+
+**Build the runtime image** (WASM artifacts only):
+
+```bash
+docker build --target runtime -t cosmosvote:latest .
+```
+
+**Build only the builder stage** (useful for running tests in CI):
+
+```bash
+docker build --target builder -t cosmosvote:builder .
+docker run --rm cosmosvote:builder make test
+```
+
+**Run the dev environment** via Docker Compose:
+
 ```bash
 docker compose up
 docker compose run --rm dev make test
