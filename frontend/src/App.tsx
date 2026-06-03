@@ -69,6 +69,16 @@ export default function App() {
     });
   }, []);
 
+  const connect = () => {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) {
+      setWalletAddress(addr);
+      fetchTokenBalance(addr)
+        .then(setTokenBalance)
+        .catch(() => setTokenBalance(null));
+    }
+  };
+
   const filtered = useMemo(() => {
     return proposals.filter(p => {
       const matchState = stateFilter === 'All' || p.state === stateFilter;
@@ -77,6 +87,12 @@ export default function App() {
       return matchState && matchSearch;
     });
   }, [proposals, search, stateFilter]);
+
+  const handleProposalCreated = (id: number) => {
+    setShowNewForm(false);
+    // In a real implementation, fetch the new proposal and navigate to it
+    setAnnouncement(`Proposal #${id} created. Refreshing list…`);
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
