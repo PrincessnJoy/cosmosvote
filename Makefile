@@ -70,3 +70,7 @@ wasm-size: build
 
 ## Run all checks (CI equivalent)
 ci: fmt-check lint test build
+
+## Run mutation testing (requires cargo-mutants)
+mutants:
+	cargo mutants --package cosmosvote-governance --features testutils --output mutants-out -- --features testutils
