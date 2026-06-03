@@ -13,8 +13,8 @@ CosmosVote enables DAOs, protocols, and communities to create proposals, cast to
 
 ## Table of Contents
 
-- [Project Overview.](#project-overview)
-- [Architecture](#architecture)
+- [Project Overview](#project-overview)
+- [Architecture.](#architecture)
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
@@ -103,9 +103,9 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 
 ### Prerequisites
 
-- Rust 1.75+ with `wasm32-unknown-unknown` target
+- Rust 1.75+ with `wasm32-unknown-unknown` target.
 - Stellar CLI (optional, for deployment)
-- Docker & Docker Compose (optional)
+- Docker & Docker Compose (optional).
 
 ### Installation & Testing
 
