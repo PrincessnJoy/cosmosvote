@@ -122,7 +122,7 @@ export default function App() {
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-header-sub)' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
               {tokenBalance !== null && (
-                <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
+                <div className={styles.headerBalance}>{formatTokenAmount(tokenBalance, decimals)}</div>
               )}
               <button
                 onClick={disconnect}

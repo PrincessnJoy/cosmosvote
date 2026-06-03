@@ -1,12 +1,13 @@
 import type { Proposal, ProposalState } from '../types';
 import { formatTokenAmount } from '../utils';
+import styles from './ProposalCard.module.css';
 
 const STATE_COLORS: Record<ProposalState, string> = {
-  Active: '#2563eb',
-  Passed: '#16a34a',
-  Rejected: '#dc2626',
-  Executed: '#7c3aed',
-  Cancelled: '#6b7280',
+  Active: 'var(--color-state-active)',
+  Passed: 'var(--color-state-passed)',
+  Rejected: 'var(--color-state-rejected)',
+  Executed: 'var(--color-state-executed)',
+  Cancelled: 'var(--color-state-cancelled)',
 };
 
 interface Props {
