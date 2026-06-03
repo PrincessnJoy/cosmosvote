@@ -448,9 +448,17 @@ docker run --rm cosmosvote:builder make test
 **Run the dev environment** via Docker Compose:
 
 ```bash
+# Start a dev shell (builder stage — full Rust toolchain)
 docker compose up
 docker compose run --rm dev make test
 docker compose run --rm dev make build
+
+# Build the minimal runtime image (WASM artifacts only)
+docker compose --profile artifacts build artifacts
+
+# Or build directly with Docker
+docker build --target builder -t cosmosvote:builder .   # dev / CI
+docker build --target runtime -t cosmosvote:runtime .   # production artifact image
 ```
 
 ### Without Docker
