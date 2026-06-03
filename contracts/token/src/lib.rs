@@ -119,6 +119,7 @@ impl TokenContract {
         amount: i128,
     ) -> Result<(), ContractError> {
         from.require_auth();
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
         let from_bal = TokenStorage::balance(&env, &from);
@@ -147,6 +148,7 @@ impl TokenContract {
         amount: i128,
     ) -> Result<(), ContractError> {
         spender.require_auth();
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
         let allowance = TokenStorage::allowance(&env, &from, &spender);
@@ -201,6 +203,7 @@ impl TokenContract {
     ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
         let supply = TokenStorage::total_supply(&env);
@@ -221,6 +224,7 @@ impl TokenContract {
     ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
         let bal = TokenStorage::balance(&env, &from);
@@ -353,6 +357,34 @@ impl TokenContract {
         Ok(())
     }
 
+    /// Pause all token operations. Admin only.
+    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        if TokenStorage::paused(&env) {
+            return Err(ContractError::ContractPaused);
+        }
+
+        TokenStorage::set_paused(&env, true);
+        TokenEvents::paused(&env, &admin);
+        Ok(())
+    }
+
+    /// Unpause the token contract. Admin only.
+    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        if !TokenStorage::paused(&env) {
+            return Err(ContractError::NotPaused);
+        }
+
+        TokenStorage::set_paused(&env, false);
+        TokenEvents::unpaused(&env, &admin);
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
@@ -368,6 +400,14 @@ impl TokenContract {
     fn assert_admin(env: &Env, caller: &Address) -> Result<(), ContractError> {
         if TokenStorage::admin(env) != *caller {
             Err(ContractError::NotAdmin)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn assert_not_paused(env: &Env) -> Result<(), ContractError> {
+        if TokenStorage::paused(env) {
+            Err(ContractError::ContractPaused)
         } else {
             Ok(())
         }
