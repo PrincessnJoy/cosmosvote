@@ -441,6 +441,8 @@ impl GovernanceContract {
     /// the proposal to `Passed` or `Rejected` and emits the `proposal_finalized`
     /// event. Subsequent calls return `Err(ProposalNotActive)` immediately.
     pub fn finalise(env: Env, proposal_id: u64) -> Result<(), ContractError> {
+        Self::assert_ready(&env)?;
+
         let mut proposal = GovernanceStorage::proposal(&env, proposal_id)
             .ok_or(ContractError::ProposalNotFound)?;
 
