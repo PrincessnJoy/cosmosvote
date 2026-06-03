@@ -536,7 +536,7 @@ fn test_transfer_admin() {
     let (gov, _, admin, voter, _) = setup(&env);
     
     // Step 1: Transfer admin initiates two-step transfer
-    gov.transfer_admin(&admin, &voter);
+    gov.propose_admin(&admin, &voter);
     
     // Admin should still be the old admin
     assert_eq!(gov.admin(), admin);
@@ -551,7 +551,7 @@ fn test_accept_admin() {
     let (gov, _, admin, voter, _) = setup(&env);
     
     // Step 1: Transfer admin initiates two-step transfer
-    gov.transfer_admin(&admin, &voter);
+    gov.propose_admin(&admin, &voter);
     
     // Step 2: New admin accepts the transfer
     gov.accept_admin(&voter);
@@ -582,7 +582,7 @@ fn test_transfer_admin_prevents_accidental_loss() {
     let (gov, _, admin, voter, voter2) = setup(&env);
     
     // Transfer admin to voter
-    gov.transfer_admin(&admin, &voter);
+    gov.propose_admin(&admin, &voter);
     
     // Old admin is still the admin until transfer is accepted
     assert_eq!(gov.admin(), admin);
