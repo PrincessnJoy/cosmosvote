@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 use crate::{types::ContractError, TokenContract, TokenContractClient};
 
@@ -12,7 +12,13 @@ fn setup(env: &Env) -> (TokenContractClient, Address, Address) {
     let user = Address::generate(env);
     let id = env.register(TokenContract, ());
     let token = TokenContractClient::new(env, &id);
-    token.initialize(&admin, &1_000_000_000i128);
+    token.initialize(
+        &admin,
+        &1_000_000_000i128,
+        &String::from_slice(env, "CosmosVote"),
+        &String::from_slice(env, "VOTE"),
+        &7u32,
+    );
     (token, admin, user)
 }
 
@@ -32,7 +38,13 @@ fn test_initialize() {
 fn test_double_init_fails() {
     let env = Env::default();
     let (token, admin, _) = setup(&env);
-    let result = token.try_initialize(&admin, &1_000_000i128);
+    let result = token.try_initialize(
+        &admin,
+        &1_000_000i128,
+        &String::from_slice(&env, "Coin"),
+        &String::from_slice(&env, "COIN"),
+        &7u32,
+    );
     assert_eq!(result, Err(Ok(ContractError::AlreadyInitialized)));
 }
 
@@ -130,10 +142,56 @@ fn test_burn_insufficient_fails() {
 }
 
 #[test]
+fn test_burn_self() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+
+    token.transfer(&admin, &user, &1_000_000i128);
+    token.burn_self(&user, &500_000i128);
+
+    assert_eq!(token.balance(&user), 500_000);
+    assert_eq!(token.total_supply(), 999_500_000);
+}
+
+#[test]
+fn test_burn_self_insufficient_balance_fails() {
+    let env = Env::default();
+    let (token, _, user) = setup(&env);
+    let result = token.try_burn_self(&user, &1_000_000i128);
+    assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
+}
+
+#[test]
 fn test_mint_non_admin_fails() {
     let env = Env::default();
     let (token, _, user) = setup(&env);
     let result = token.try_mint(&user, &user, &1_000i128);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
+fn test_burn_reduces_total_supply() {
+    let env = Env::default();
+    let (token, admin, _) = setup(&env);
+    token.burn(&admin, &admin, &200_000_000i128);
+    assert_eq!(token.total_supply(), 800_000_000);
+    assert_eq!(token.balance(&admin), 800_000_000);
+}
+
+#[test]
+fn test_burn_insufficient_balance_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let result = token.try_burn(&admin, &user, &1i128);
+    assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
+}
+
+#[test]
+fn test_burn_non_admin_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    token.transfer(&admin, &user, &1_000_000i128);
+    let result = token.try_burn(&user, &user, &1_000_000i128);
     assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
 }
 
@@ -142,19 +200,39 @@ fn test_mint_non_admin_fails() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_transfer_admin() {
+fn test_admin_transfer_happy_path() {
     let env = Env::default();
     let (token, admin, user) = setup(&env);
-    token.transfer_admin(&admin, &user);
-    assert_eq!(token.admin(), user);
+    
+    // Step 1: Propose
+    token.propose_admin(&admin, &user);
+    assert_eq!(token.admin(), admin); // Still old admin
+    
+    // Step 2: Accept
+    token.accept_admin(&user);
+    assert_eq!(token.admin(), user); // Now new admin
 }
 
 #[test]
-fn test_transfer_admin_non_admin_fails() {
+fn test_propose_admin_non_admin_fails() {
     let env = Env::default();
     let (token, _, user) = setup(&env);
-    let result = token.try_transfer_admin(&user, &Address::generate(&env));
+    let result = token.try_propose_admin(&user, &Address::generate(&env));
     assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
+fn test_accept_admin_not_pending_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    
+    let result = token.try_accept_admin(&user);
+    assert_eq!(result, Err(Ok(ContractError::NoPendingAdmin)));
+
+    token.propose_admin(&admin, &user);
+    let random = Address::generate(&env);
+    let result = token.try_accept_admin(&random);
+    assert_eq!(result, Err(Ok(ContractError::NotPendingAdmin)));
 }
 
 // ---------------------------------------------------------------------------
@@ -166,4 +244,135 @@ fn test_version() {
     let env = Env::default();
     let (token, _, _) = setup(&env);
     assert_eq!(token.version(), (1u32, 0u32, 0u32));
+}
+
+// ---------------------------------------------------------------------------
+// SEP-41 Metadata
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_name() {
+    let env = Env::default();
+    let (token, _, _) = setup(&env);
+    assert_eq!(token.name(), String::from_slice(&env, "CosmosVote"));
+}
+
+#[test]
+fn test_symbol() {
+    let env = Env::default();
+    let (token, _, _) = setup(&env);
+    assert_eq!(token.symbol(), String::from_slice(&env, "VOTE"));
+}
+
+#[test]
+fn test_decimals() {
+    let env = Env::default();
+    let (token, _, _) = setup(&env);
+    assert_eq!(token.decimals(), 7u32);
+}
+
+// ---------------------------------------------------------------------------
+// Delegation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_delegate_and_get_delegation() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let delegate = Address::generate(&env);
+
+    token.transfer(&admin, &user, &1_000_000i128);
+    token.delegate(&user, &delegate);
+
+    assert_eq!(token.get_delegation(&user), Some(delegate));
+}
+
+#[test]
+fn test_delegate_self_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    token.transfer(&admin, &user, &1_000_000i128);
+
+    let result = token.try_delegate(&user, &user);
+    assert_eq!(result, Err(Ok(ContractError::CannotDelegateSelf)));
+}
+
+#[test]
+fn test_delegate_twice_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let delegate = Address::generate(&env);
+    let delegate2 = Address::generate(&env);
+
+    token.transfer(&admin, &user, &1_000_000i128);
+    token.delegate(&user, &delegate);
+
+    let result = token.try_delegate(&user, &delegate2);
+    assert_eq!(result, Err(Ok(ContractError::AlreadyDelegating)));
+}
+
+#[test]
+fn test_undelegate() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let delegate = Address::generate(&env);
+
+    token.transfer(&admin, &user, &1_000_000i128);
+    token.delegate(&user, &delegate);
+    token.undelegate(&user);
+
+    assert_eq!(token.get_delegation(&user), None);
+}
+
+#[test]
+fn test_undelegate_without_delegation_fails() {
+    let env = Env::default();
+    let (token, _, user) = setup(&env);
+
+    let result = token.try_undelegate(&user);
+    assert_eq!(result, Err(Ok(ContractError::NotDelegating)));
+}
+
+#[test]
+fn test_get_delegated_weight_no_delegators() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    token.transfer(&admin, &user, &5_000_000i128);
+
+    let weight = token.get_delegated_weight(&user, &soroban_sdk::Vec::new(&env));
+    assert_eq!(weight, 5_000_000);
+}
+
+#[test]
+fn test_get_delegated_weight_with_delegator() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let delegator = Address::generate(&env);
+
+    token.transfer(&admin, &user, &5_000_000i128);
+    token.mint(&admin, &delegator, &3_000_000i128);
+    token.delegate(&delegator, &user);
+
+    let mut delegators = soroban_sdk::Vec::new(&env);
+    delegators.push_back(delegator);
+    let weight = token.get_delegated_weight(&user, &delegators);
+    assert_eq!(weight, 8_000_000); // 5M own + 3M delegated
+}
+
+#[test]
+fn test_get_delegated_weight_ignores_wrong_delegator() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let other = Address::generate(&env);
+    let unrelated = Address::generate(&env);
+
+    token.transfer(&admin, &user, &5_000_000i128);
+    token.mint(&admin, &other, &2_000_000i128);
+    // other delegates to unrelated, not to user
+    token.delegate(&other, &unrelated);
+
+    let mut delegators = soroban_sdk::Vec::new(&env);
+    delegators.push_back(other);
+    let weight = token.get_delegated_weight(&user, &delegators);
+    assert_eq!(weight, 5_000_000); // only own balance
 }
