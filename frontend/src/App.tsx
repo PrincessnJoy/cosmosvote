@@ -7,6 +7,7 @@ import { ProposalDetail } from './components/ProposalDetail';
 import { useToast } from './components/ToastContext';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
+import './responsive.css';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
