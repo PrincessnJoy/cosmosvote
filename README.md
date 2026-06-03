@@ -187,7 +187,8 @@ cosmosvote/
 │   ├── lifecycle.md
 │   ├── storage.md
 │   ├── errors.md
-│   └── faq.md
+│   ├── faq.md
+│   └── runbook.md
 │
 ├── scripts/
 │   ├── deploy.sh                     # Deploy to local/testnet
