@@ -377,7 +377,7 @@ impl GovernanceContract {
         // Admin vote restriction
         if GovernanceStorage::restrict_admin_vote(&env) {
             let admin = GovernanceStorage::admin(&env);
-            if voter == admin && proposal.proposer == admin {
+            if voter == admin {
                 return Err(ContractError::AdminVoteRestricted);
             }
         }

@@ -107,6 +107,7 @@ sequenceDiagram
 | Storage tiers | Instance for config, Persistent for proposals/votes, Temporary for allowances |
 | Events | Every state transition emits an on-chain event |
 | Tie handling | Tie (yes == no) results in rejection |
+| Admin vote restriction | When `restrict_admin_vote=true`, admin cannot vote on **any** proposal |
 
 ---
 
