@@ -438,6 +438,26 @@ fn test_finalise_voting_still_open_fails() {
 }
 
 #[test]
+fn test_finalise_repeated_call_returns_not_active() {
+    // Issue #73: finalise() is idempotent — the ProposalNotActive guard ensures
+    // that only the first call mutates state; all subsequent calls are no-ops.
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    let proposal = gov.get_proposal(&id);
+    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+
+    // First call succeeds and transitions state
+    gov.finalise(&id);
+    assert_eq!(gov.get_proposal(&id).state, ProposalState::Passed);
+
+    // All subsequent calls are rejected — no state corruption possible
+    let result = gov.try_finalise(&id);
+    assert_eq!(result, Err(Ok(ContractError::ProposalNotActive)));
+}
+
+#[test]
 fn test_finalise_tie_rejected() {
     let env = Env::default();
     let (gov, token, admin, voter, voter2) = setup(&env);
