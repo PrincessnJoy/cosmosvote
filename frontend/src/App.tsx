@@ -10,12 +10,16 @@ import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
+// Admin address — in production this would come from the contract or environment config
+const ADMIN_ADDRESS = import.meta.env.VITE_ADMIN_ADDRESS ?? null;
+
 export default function App() {
   const { walletAddress, walletName, tokenBalance, showModal, openModal, disconnect } = useWallet();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState('');
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
@@ -49,6 +53,11 @@ export default function App() {
       .then(([props, decs]) => {
         setProposals(props);
         setDecimals(decs);
+        setAnnouncement(`${props.length} proposal${props.length !== 1 ? 's' : ''} loaded.`);
+      })
+      .catch(e => {
+        setError(String(e));
+        setAnnouncement('');
       })
       .catch(e => setError(String(e)))
       .finally(() => { setLoading(false); setProgress(null); });
@@ -71,6 +80,8 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
+      <AriaLive polite={announcement} assertive={error ?? undefined} />
+
       {/* Header */}
       <header style={{ background: '#1e293b', color: '#fff', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
@@ -180,6 +191,7 @@ export default function App() {
           proposal={selected}
           decimals={decimals}
           walletAddress={walletAddress}
+          adminAddress={ADMIN_ADDRESS}
           onClose={() => setSelected(null)}
           triggerRef={triggerRef}
         />
