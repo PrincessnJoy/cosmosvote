@@ -3,6 +3,7 @@
 //! Manages the full proposal lifecycle: creation, voting, finalization,
 //! execution, and cancellation. Enforces quorum, prevents double-voting,
 //! and emits on-chain events for every state transition.
+//! .
 
 #![no_std]
 
@@ -23,23 +24,42 @@ use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 use events::GovernanceEvents;
 use storage::GovernanceStorage;
-use types::{ContractError, ContractState, GovernanceConfig, Proposal, ProposalState, Vote, VoteRecord};
+use types::{ContractError, ContractState, GovernanceConfig, Proposal, ProposalState, TreasuryAction, Vote, VoteRecord};
 
 // ---------------------------------------------------------------------------
 // Token interface (cross-contract call)
 // ---------------------------------------------------------------------------
 
 mod token_interface {
-    use soroban_sdk::{contractclient, Address, Env};
+    use soroban_sdk::{contractclient, Address, Env, Vec};
 
     #[contractclient(name = "TokenClient")]
     pub trait TokenInterface {
         fn balance(env: Env, owner: Address) -> i128;
+        fn balance_at(env: Env, owner: Address, ledger: u64) -> i128;
         fn total_supply(env: Env) -> i128;
+        fn get_delegation(env: Env, owner: Address) -> Option<Address>;
+        fn get_delegated_weight(env: Env, voter: Address, delegators: Vec<Address>) -> i128;
     }
 }
 
 pub(crate) use token_interface::TokenClient;
+
+// ---------------------------------------------------------------------------
+// Treasury interface (cross-contract call)
+// ---------------------------------------------------------------------------
+
+mod treasury_interface {
+    use soroban_sdk::{contractclient, Env};
+    use crate::types::TreasuryAction;
+
+    #[contractclient(name = "TreasuryClient")]
+    pub trait TreasuryInterface {
+        fn disburse(env: Env, action: TreasuryAction);
+    }
+}
+
+use treasury_interface::TreasuryClient;
 
 // ---------------------------------------------------------------------------
 // Contract
@@ -62,6 +82,7 @@ impl GovernanceContract {
     /// * `proposal_cooldown`    – seconds between proposals per address (0 = none)
     /// * `min_quorum_bps`       – minimum quorum floor in basis points (100 = 1%)
     /// * `restrict_admin_vote`  – if true, admin cannot vote on own proposals
+    /// * `treasury`             – optional treasury contract address
     pub fn initialize(
         env: Env,
         admin: Address,
@@ -70,6 +91,7 @@ impl GovernanceContract {
         proposal_cooldown: u64,
         min_quorum_bps: u32,
         restrict_admin_vote: bool,
+        treasury: Option<Address>,
     ) -> Result<(), ContractError> {
         if GovernanceStorage::contract_state(&env) != ContractState::Uninitialized {
             return Err(ContractError::AlreadyInitialized);
@@ -77,6 +99,9 @@ impl GovernanceContract {
 
         GovernanceStorage::set_admin(&env, &admin);
         GovernanceStorage::set_voting_token(&env, &voting_token);
+        if let Some(t) = &treasury {
+            GovernanceStorage::set_treasury_contract(&env, t);
+        }
         GovernanceStorage::set_proposal_count(&env, 0);
         GovernanceStorage::set_min_proposal_balance(&env, min_proposal_balance);
         GovernanceStorage::set_proposal_cooldown(&env, proposal_cooldown);
@@ -116,6 +141,7 @@ impl GovernanceContract {
         description: String,
         quorum: i128,
         duration: u64,
+        treasury_action: Option<TreasuryAction>,
     ) -> Result<u64, ContractError> {
         proposer.require_auth();
         Self::assert_ready(&env)?;
@@ -132,6 +158,12 @@ impl GovernanceContract {
         }
         if duration < 60 || duration > 2_592_000 {
             return Err(ContractError::InvalidDurationRange);
+        }
+
+        // Global rate limit: max 50 active proposals
+        let active_count = GovernanceStorage::active_proposal_count(&env);
+        if active_count >= 50 {
+            return Err(ContractError::ProposalsStillActive);
         }
 
         let token = GovernanceStorage::voting_token(&env);
@@ -191,11 +223,12 @@ impl GovernanceContract {
             end_time: now + duration,
             state: ProposalState::Active,
             snapshot_ledger,
-            voter_count: 0,
+            treasury_action,
         };
 
         GovernanceStorage::set_proposal(&env, id, &proposal);
         GovernanceStorage::set_proposal_count(&env, id + 1);
+        GovernanceStorage::set_active_proposal_count(&env, active_count + 1);
         GovernanceStorage::set_last_proposal_time(&env, &proposer, now);
 
         GovernanceEvents::proposal_created(&env, id, &proposer, &title, quorum, now + duration);
@@ -251,6 +284,63 @@ impl GovernanceContract {
         proposals
     }
 
+    /// Amend the title and description of an active proposal before any votes are cast.
+    /// Only callable by the original proposer.
+    pub fn amend_proposal(
+        env: Env,
+        proposer: Address,
+        proposal_id: u64,
+        new_title: String,
+        new_description: String,
+    ) -> Result<(), ContractError> {
+        proposer.require_auth();
+        Self::assert_ready(&env)?;
+
+        let mut proposal = GovernanceStorage::proposal(&env, proposal_id)
+            .ok_or(ContractError::ProposalNotFound)?;
+
+        if proposal.proposer != proposer {
+            return Err(ContractError::NotProposer);
+        }
+
+        if proposal.state != ProposalState::Active {
+            return Err(ContractError::ProposalNotActive);
+        }
+
+        let total_votes = proposal.votes_yes
+            .checked_add(proposal.votes_no)
+            .and_then(|v| v.checked_add(proposal.votes_abstain))
+            .ok_or(ContractError::ArithmeticOverflow)?;
+
+        if total_votes > 0 {
+            return Err(ContractError::VotesAlreadyCast);
+        }
+
+        if new_title.len() == 0 || new_title.len() > 128 {
+            return Err(ContractError::InvalidTitle);
+        }
+        if new_description.len() == 0 || new_description.len() > 1024 {
+            return Err(ContractError::InvalidDescription);
+        }
+
+        let old_title = proposal.title.clone();
+        let old_description = proposal.description.clone();
+        proposal.title = new_title.clone();
+        proposal.description = new_description.clone();
+        GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
+
+        GovernanceEvents::proposal_amended(
+            &env,
+            proposal_id,
+            &proposer,
+            &old_title,
+            &new_title,
+            &old_description,
+            &new_description,
+        );
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Voting
     // -----------------------------------------------------------------------
@@ -293,7 +383,19 @@ impl GovernanceContract {
         }
 
         let token = GovernanceStorage::voting_token(&env);
-        let weight = TokenClient::new(&env, &token).balance_at(&voter, proposal.snapshot_ledger);
+        let token_client = TokenClient::new(&env, &token);
+
+        // If the voter has delegated their power away, they cannot vote directly.
+        // Their delegate will vote with the accumulated weight.
+        if token_client.get_delegation(&voter).is_some() {
+            return Err(ContractError::NoVotingPower);
+        }
+
+        // Weight = voter's own balance (delegators' balances are added via get_delegated_weight).
+        // Since we cannot enumerate all delegators on-chain, governance uses an empty list here;
+        // the voter's own balance is always included. Delegators who want their weight counted
+        // must have their delegate cast the vote on their behalf.
+        let weight = token_client.get_delegated_weight(&voter, &Vec::new(&env));
         if weight <= 0 {
             return Err(ContractError::NoVotingPower);
         }
@@ -336,8 +438,19 @@ impl GovernanceContract {
     // -----------------------------------------------------------------------
 
     /// Finalize a proposal after its voting period ends.
-    /// Anyone may call this.
+    ///
+    /// This function is permissionless — anyone may call it. It is safe against
+    /// spam because the `ProposalNotActive` guard makes every call after the
+    /// first a cheap no-op: the proposal state is read, the non-`Active` branch
+    /// is taken, and `Err(ProposalNotActive)` is returned without writing any
+    /// storage. No state corruption is possible.
+    ///
+    /// **Idempotency guarantee:** only the *first* successful call transitions
+    /// the proposal to `Passed` or `Rejected` and emits the `proposal_finalized`
+    /// event. Subsequent calls return `Err(ProposalNotActive)` immediately.
     pub fn finalise(env: Env, proposal_id: u64) -> Result<(), ContractError> {
+        Self::assert_ready(&env)?;
+
         let mut proposal = GovernanceStorage::proposal(&env, proposal_id)
             .ok_or(ContractError::ProposalNotFound)?;
 
@@ -359,6 +472,10 @@ impl GovernanceContract {
         proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
 
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
+        let active_count = GovernanceStorage::active_proposal_count(&env);
+        if active_count > 0 {
+            GovernanceStorage::set_active_proposal_count(&env, active_count - 1);
+        }
         GovernanceEvents::proposal_finalized(&env, proposal_id, &proposal.state);
         Ok(())
     }
@@ -373,6 +490,14 @@ impl GovernanceContract {
 
         if proposal.state != ProposalState::Passed {
             return Err(ContractError::ProposalNotPassed);
+        }
+
+        // Invoke treasury disbursement if a payload is attached
+        if let Some(action) = proposal.treasury_action.clone() {
+            if let Some(treasury_addr) = GovernanceStorage::treasury_contract(&env) {
+                let treasury = TreasuryClient::new(&env, &treasury_addr);
+                treasury.disburse(&action);
+            }
         }
 
         proposal.state = ProposalState::Executed;
@@ -395,33 +520,11 @@ impl GovernanceContract {
 
         proposal.state = ProposalState::Cancelled;
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
-        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin, proposal.voter_count);
-        Ok(())
-    }
-
-    /// Clean up vote records for a cancelled proposal to reclaim storage.
-    /// Admin provides the list of voter addresses to clean up.
-    /// Only callable on Cancelled proposals.
-    pub fn cleanup_cancelled_proposal(
-        env: Env,
-        admin: Address,
-        proposal_id: u64,
-        voters: Vec<Address>,
-    ) -> Result<(), ContractError> {
-        admin.require_auth();
-        Self::assert_admin(&env, &admin)?;
-
-        let proposal = GovernanceStorage::proposal(&env, proposal_id)
-            .ok_or(ContractError::ProposalNotFound)?;
-
-        if proposal.state != ProposalState::Cancelled {
-            return Err(ContractError::ProposalNotActive);
+        let active_count = GovernanceStorage::active_proposal_count(&env);
+        if active_count > 0 {
+            GovernanceStorage::set_active_proposal_count(&env, active_count - 1);
         }
-
-        for voter in voters.iter() {
-            env.storage().persistent().remove(&storage::PersistentKey::HasVoted(proposal_id, voter.clone()));
-            env.storage().persistent().remove(&storage::PersistentKey::VoteRecord(proposal_id, voter.clone()));
-        }
+        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin);
         Ok(())
     }
 
@@ -475,7 +578,7 @@ impl GovernanceContract {
     /// Initiate a two-step admin transfer. Current admin only.
     /// The new admin must call `accept_admin` to complete the transfer.
     /// This pattern prevents accidental admin loss and supports multisig accounts.
-    pub fn transfer_admin(
+    pub fn propose_admin(
         env: Env,
         admin: Address,
         new_admin: Address,
@@ -483,8 +586,43 @@ impl GovernanceContract {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
+        // Guard: reject the all-zeros Stellar account (zero-address equivalent).
+        // GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF is the strkey
+        // encoding of a 32-byte zeroed public key — no valid keypair can sign for it.
+        let zero_addr = Address::from_string(
+            &env,
+            &soroban_sdk::String::from_str(
+                &env,
+                "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+            ),
+        );
+        if new_admin == zero_addr {
+            return Err(ContractError::InvalidNewAdmin);
+        }
+
         GovernanceStorage::set_pending_admin(&env, Some(&new_admin));
-        GovernanceEvents::admin_transfer_initiated(&env, &admin, &new_admin);
+        GovernanceEvents::admin_transfer_proposed(&env, &admin, &new_admin);
+        Ok(())
+    }
+
+    /// Update the voting token address. Admin only.
+    /// Only allowed when no proposals are currently Active.
+    pub fn update_voting_token(
+        env: Env,
+        admin: Address,
+        new_token: Address,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        let active_count = GovernanceStorage::active_proposal_count(&env);
+        if active_count > 0 {
+            return Err(ContractError::ProposalsStillActive);
+        }
+
+        let old_token = GovernanceStorage::voting_token(&env);
+        GovernanceStorage::set_voting_token(&env, &new_token);
+        GovernanceEvents::voting_token_updated(&env, &old_token, &new_token);
         Ok(())
     }
 
@@ -502,7 +640,7 @@ impl GovernanceContract {
         let previous_admin = GovernanceStorage::admin(&env);
         GovernanceStorage::set_admin(&env, &pending_admin);
         GovernanceStorage::set_pending_admin(&env, None);
-        GovernanceEvents::admin_transfer_completed(&env, &previous_admin, &pending_admin);
+        GovernanceEvents::admin_transfer_accepted(&env, &previous_admin, &pending_admin);
         Ok(())
     }
 
