@@ -20,7 +20,7 @@ mod prop_tests;
 #[cfg(test)]
 mod benchmarks;
 
-use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use events::GovernanceEvents;
 use storage::GovernanceStorage;
@@ -628,6 +628,20 @@ impl GovernanceContract {
         Ok(())
     }
 
+    /// Upgrade the governance contract WASM. Admin only.
+    pub fn upgrade(
+        env: Env,
+        admin: Address,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        GovernanceEvents::contract_upgraded(&env, &new_wasm_hash);
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Admin operations
     // -----------------------------------------------------------------------
@@ -659,12 +673,11 @@ impl GovernanceContract {
             return Err(ContractError::ProposalNotActive);
         }
 
-        let total_votes = proposal.votes_yes
-            .checked_add(proposal.votes_no)
-            .and_then(|v| v.checked_add(proposal.votes_abstain))
-            .ok_or(ContractError::ArithmeticOverflow)?;
-
-        if total_votes > 0 {
+        // Time-lock: only allowed within the first 10% of the voting period.
+        let now = env.ledger().timestamp();
+        let duration = proposal.end_time.saturating_sub(proposal.start_time);
+        let window = duration / 10;
+        if now > proposal.start_time + window {
             return Err(ContractError::QuorumUpdateNotAllowed);
         }
 

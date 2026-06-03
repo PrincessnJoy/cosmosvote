@@ -94,7 +94,8 @@ fn test_approve_and_transfer_from() {
     let env = Env::default();
     let (token, admin, user) = setup(&env);
     let spender = Address::generate(&env);
-    token.approve(&admin, &spender, &5_000_000i128);
+    let expiry = env.ledger().sequence() + 10;
+    token.approve(&admin, &spender, &5_000_000i128, &expiry);
     assert_eq!(token.allowance(&admin, &spender), 5_000_000);
     token.transfer_from(&spender, &admin, &user, &2_000_000i128);
     assert_eq!(token.balance(&user), 2_000_000);
@@ -106,8 +107,21 @@ fn test_transfer_from_exceeds_allowance_fails() {
     let env = Env::default();
     let (token, admin, user) = setup(&env);
     let spender = Address::generate(&env);
-    token.approve(&admin, &spender, &100i128);
+    let expiry = env.ledger().sequence() + 10;
+    token.approve(&admin, &spender, &100i128, &expiry);
     let result = token.try_transfer_from(&spender, &admin, &user, &200i128);
+    assert_eq!(result, Err(Ok(ContractError::AllowanceExceeded)));
+}
+
+#[test]
+fn test_transfer_from_expired_allowance_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let spender = Address::generate(&env);
+    let expiry = env.ledger().sequence() + 1;
+    token.approve(&admin, &spender, &1_000_000i128, &expiry);
+    env.ledger().with_mut(|l| l.sequence = expiry + 1);
+    let result = token.try_transfer_from(&spender, &admin, &user, &1_000_000i128);
     assert_eq!(result, Err(Ok(ContractError::AllowanceExceeded)));
 }
 

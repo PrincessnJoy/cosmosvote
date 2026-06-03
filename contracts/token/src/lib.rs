@@ -151,8 +151,9 @@ impl TokenContract {
         Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
-        let allowance = TokenStorage::allowance(&env, &from, &spender);
-        if allowance < amount {
+        let allowance_record = TokenStorage::allowance_record(&env, &from, &spender)
+            .ok_or(ContractError::AllowanceExceeded)?;
+        if allowance_record.amount < amount {
             return Err(ContractError::AllowanceExceeded);
         }
 
@@ -161,7 +162,14 @@ impl TokenContract {
             return Err(ContractError::InsufficientBalance);
         }
 
-        TokenStorage::set_allowance(&env, &from, &spender, allowance - amount);
+        let remaining = allowance_record.amount - amount;
+        TokenStorage::set_allowance(
+            &env,
+            &from,
+            &spender,
+            remaining,
+            allowance_record.expiry_ledger,
+        );
         TokenStorage::set_balance(&env, &from, from_bal - amount);
         let to_bal = TokenStorage::balance(&env, &to);
         TokenStorage::set_balance(&env, &to, to_bal + amount);
@@ -180,12 +188,17 @@ impl TokenContract {
         owner: Address,
         spender: Address,
         amount: i128,
+        expiry_ledger: u32,
     ) -> Result<(), ContractError> {
         owner.require_auth();
         if amount < 0 {
             return Err(ContractError::InvalidAmount);
         }
-        TokenStorage::set_allowance(&env, &owner, &spender, amount);
+        let current_ledger = env.ledger().sequence();
+        if expiry_ledger <= current_ledger {
+            return Err(ContractError::InvalidExpiry);
+        }
+        TokenStorage::set_allowance(&env, &owner, &spender, amount, expiry_ledger);
         TokenEvents::approval(&env, &owner, &spender, amount);
         Ok(())
     }
