@@ -659,12 +659,11 @@ impl GovernanceContract {
             return Err(ContractError::ProposalNotActive);
         }
 
-        let total_votes = proposal.votes_yes
-            .checked_add(proposal.votes_no)
-            .and_then(|v| v.checked_add(proposal.votes_abstain))
-            .ok_or(ContractError::ArithmeticOverflow)?;
-
-        if total_votes > 0 {
+        // Time-lock: only allowed within the first 10% of the voting period.
+        let now = env.ledger().timestamp();
+        let duration = proposal.end_time.saturating_sub(proposal.start_time);
+        let window = duration / 10;
+        if now > proposal.start_time + window {
             return Err(ContractError::QuorumUpdateNotAllowed);
         }
 
