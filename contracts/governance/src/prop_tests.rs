@@ -5,7 +5,7 @@
 #![cfg(test)]
 
 use proptest::prelude::*;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, String};
 
 use crate::{
     types::{ProposalState, Vote},
@@ -31,20 +31,28 @@ proptest! {
 
         let token_id = env.register(TokenContract, ());
         let token = TokenContractClient::new(&env, &token_id);
-        token.initialize(&admin, &1_000_000_000i128);
+        token.initialize(
+            &admin,
+            &1_000_000_000i128,
+            &String::from_str(&env, "CosmosVote"),
+            &String::from_str(&env, "VOTE"),
+            &7u32,
+        );
         token.mint(&admin, &voter, &yes_weight);
 
         let gov_id = env.register(GovernanceContract, ());
         let gov = GovernanceContractClient::new(&env, &gov_id);
-        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
         let id = gov.create_proposal(
             &voter,
             &String::from_str(&env, "Prop"),
             &String::from_str(&env, "Description"),
-            &(yes_weight / 2),
+            &quorum,
             &3600u64,
+            &None,
         );
+
 
         gov.cast_vote(&voter, &id, &Vote::Yes);
         prop_assert!(gov.has_voted(&id, &voter));
@@ -72,13 +80,19 @@ proptest! {
 
         let token_id = env.register(TokenContract, ());
         let token = TokenContractClient::new(&env, &token_id);
-        token.initialize(&admin, &supply);
+        token.initialize(
+            &admin,
+            &supply,
+            &String::from_str(&env, "CosmosVote"),
+            &String::from_str(&env, "VOTE"),
+            &7u32,
+        );
         token.mint(&admin, &voter_a, &weight_a);
         token.mint(&admin, &voter_b, &weight_b);
 
         let gov_id = env.register(GovernanceContract, ());
         let gov = GovernanceContractClient::new(&env, &gov_id);
-        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
         let id = gov.create_proposal(
             &voter_a,
@@ -86,6 +100,7 @@ proptest! {
             &String::from_str(&env, "Verify vote totals"),
             &(supply / 2),
             &3600u64,
+            &None,
         );
 
         gov.cast_vote(&voter_a, &id, &Vote::Yes);
@@ -111,13 +126,19 @@ proptest! {
 
         let token_id = env.register(TokenContract, ());
         let token = TokenContractClient::new(&env, &token_id);
-        token.initialize(&admin, &1_000_000_000i128);
+        token.initialize(
+            &admin,
+            &1_000_000_000i128,
+            &String::from_str(&env, "CosmosVote"),
+            &String::from_str(&env, "VOTE"),
+            &7u32,
+        );
         token.mint(&admin, &voter_yes, &yes_weight);
         token.mint(&admin, &voter_no, &no_weight);
 
         let gov_id = env.register(GovernanceContract, ());
         let gov = GovernanceContractClient::new(&env, &gov_id);
-        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
         let quorum = yes_weight + no_weight - 1;
         let id = gov.create_proposal(
@@ -126,6 +147,7 @@ proptest! {
             &String::from_str(&env, "Should pass"),
             &quorum,
             &3600u64,
+            &None,
         );
 
         gov.cast_vote(&voter_yes, &id, &Vote::Yes);
@@ -141,5 +163,53 @@ proptest! {
         } else {
             prop_assert_eq!(final_proposal.state, ProposalState::Rejected);
         }
+    }
+
+    /// Total votes never exceed i128::MAX for any valid supply.
+    /// Since total_supply is itself bounded by i128::MAX (enforced by checked_add in mint),
+    /// and each voter's weight <= their balance, the sum of all votes <= total_supply <= i128::MAX.
+    #[test]
+    fn prop_total_votes_never_exceed_i128_max(
+        supply in 1_000_000i128..1_000_000_000i128,
+    ) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let voter_a = Address::generate(&env);
+        let voter_b = Address::generate(&env);
+
+        let weight_a = supply / 2;
+        let weight_b = supply - weight_a;
+
+        let token_id = env.register(TokenContract, ());
+        let token = TokenContractClient::new(&env, &token_id);
+        token.initialize(&admin, &supply);
+        token.mint(&admin, &voter_a, &weight_a);
+        token.mint(&admin, &voter_b, &weight_b);
+
+        let gov_id = env.register(GovernanceContract, ());
+        let gov = GovernanceContractClient::new(&env, &gov_id);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+
+        let id = gov.create_proposal(
+            &voter_a,
+            &String::from_str(&env, "Overflow Test"),
+            &String::from_str(&env, "Total votes must not exceed i128::MAX"),
+            &1i128,
+            &3600u64,
+        );
+
+        gov.cast_vote(&voter_a, &id, &Vote::Yes);
+        gov.cast_vote(&voter_b, &id, &Vote::Abstain);
+
+        let proposal = gov.get_proposal(&id);
+        let total = proposal.votes_yes
+            .checked_add(proposal.votes_no)
+            .and_then(|v| v.checked_add(proposal.votes_abstain))
+            .expect("total votes overflowed i128");
+
+        prop_assert!(total <= i128::MAX);
+        prop_assert!(total <= supply);
     }
 }
