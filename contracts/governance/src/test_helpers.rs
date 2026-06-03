@@ -41,7 +41,7 @@ pub fn setup<'a>(env: &'a Env) -> TestEnv<'a> {
     // Deploy governance
     let gov_id = env.register(GovernanceContract, ());
     let governance = GovernanceContractClient::new(env, &gov_id);
-    governance.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
+    governance.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
     TestEnv { env, governance, token, admin, voter_a, voter_b, voter_c }
 }
@@ -54,6 +54,7 @@ pub fn create_proposal(t: &TestEnv, proposer: &Address) -> u64 {
         &String::from_str(t.env, "A test governance proposal for CosmosVote"),
         &5_000_000i128,
         &604_800u64,
+        &None,
     )
 }
 
