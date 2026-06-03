@@ -5,7 +5,7 @@
 #![cfg(test)]
 
 use proptest::prelude::*;
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, String};
 
 use crate::{
     types::{ProposalState, Vote},
@@ -31,12 +31,18 @@ proptest! {
 
         let token_id = env.register(TokenContract, ());
         let token = TokenContractClient::new(&env, &token_id);
-        token.initialize(&admin, &1_000_000_000i128);
+        token.initialize(
+            &admin,
+            &1_000_000_000i128,
+            &String::from_str(&env, "CosmosVote"),
+            &String::from_str(&env, "VOTE"),
+            &7u32,
+        );
         token.mint(&admin, &voter, &yes_weight);
 
         let gov_id = env.register(GovernanceContract, ());
         let gov = GovernanceContractClient::new(&env, &gov_id);
-        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
         let id = gov.create_proposal(
             &voter,
@@ -74,13 +80,19 @@ proptest! {
 
         let token_id = env.register(TokenContract, ());
         let token = TokenContractClient::new(&env, &token_id);
-        token.initialize(&admin, &supply);
+        token.initialize(
+            &admin,
+            &supply,
+            &String::from_str(&env, "CosmosVote"),
+            &String::from_str(&env, "VOTE"),
+            &7u32,
+        );
         token.mint(&admin, &voter_a, &weight_a);
         token.mint(&admin, &voter_b, &weight_b);
 
         let gov_id = env.register(GovernanceContract, ());
         let gov = GovernanceContractClient::new(&env, &gov_id);
-        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
         let id = gov.create_proposal(
             &voter_a,
@@ -88,6 +100,7 @@ proptest! {
             &String::from_str(&env, "Verify vote totals"),
             &(supply / 2),
             &3600u64,
+            &None,
         );
 
         gov.cast_vote(&voter_a, &id, &Vote::Yes);
@@ -113,13 +126,19 @@ proptest! {
 
         let token_id = env.register(TokenContract, ());
         let token = TokenContractClient::new(&env, &token_id);
-        token.initialize(&admin, &1_000_000_000i128);
+        token.initialize(
+            &admin,
+            &1_000_000_000i128,
+            &String::from_str(&env, "CosmosVote"),
+            &String::from_str(&env, "VOTE"),
+            &7u32,
+        );
         token.mint(&admin, &voter_yes, &yes_weight);
         token.mint(&admin, &voter_no, &no_weight);
 
         let gov_id = env.register(GovernanceContract, ());
         let gov = GovernanceContractClient::new(&env, &gov_id);
-        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
         let quorum = yes_weight + no_weight - 1;
         let id = gov.create_proposal(
