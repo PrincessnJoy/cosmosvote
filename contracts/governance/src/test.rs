@@ -981,3 +981,31 @@ fn test_undelegate_restores_voting_power() {
     gov.cast_vote(&voter, &id, &Vote::Yes);
     assert!(gov.has_voted(&id, &voter));
 }
+
+#[test]
+fn test_bump_proposal_extends_ttl() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+
+    // bump should succeed for existing proposal
+    let result = gov.try_bump_proposal(&id);
+    assert_eq!(result, Ok(()));
+
+    // proposal should still be retrievable
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.id, id);
+}
+
+#[test]
+fn test_proposal_count_persisted() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+
+    // create proposals and ensure count increments
+    for i in 0..3 {
+        let id = make_proposal(&gov, &env, &voter);
+        assert_eq!(id, i);
+    }
+    assert_eq!(gov.proposal_count(), 3);
+}
