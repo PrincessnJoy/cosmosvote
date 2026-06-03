@@ -5,7 +5,7 @@
 use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env, String};
 
 use crate::{
-    types::{ContractError, ProposalState, Vote},
+    types::{ContractError, ProposalState, Vote, ExecutionPayload},
     GovernanceContract, GovernanceContractClient,
 };
 use cosmosvote_token::{TokenContract, TokenContractClient};
@@ -1098,4 +1098,92 @@ fn test_proposal_count_persisted() {
         assert_eq!(id, i);
     }
     assert_eq!(gov.proposal_count(), 3);
+}
+
+// ---------------------------------------------------------------------------
+// Issue #1: Update Voting Token
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_update_voting_token_success() {
+    let env = Env::default();
+    let (gov, _token, admin, _, _) = setup(&env);
+    let new_token_id = env.register(TokenContract, ());
+    
+    gov.update_voting_token(&admin, &new_token_id);
+    assert_eq!(gov.get_config().voting_token, new_token_id);
+}
+
+#[test]
+fn test_update_voting_token_fails_with_active_proposals() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    make_proposal(&gov, &env, &voter);
+    
+    let new_token_id = env.register(TokenContract, ());
+    let result = gov.try_update_voting_token(&admin, &new_token_id);
+    assert_eq!(result, Err(Ok(ContractError::ProposalsStillActive)));
+}
+
+// ---------------------------------------------------------------------------
+// Issue #2: Execution Payload
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_execute_with_payload() {
+    let env = Env::default();
+    let (gov, token, admin, voter, _) = setup(&env);
+    
+    // Create a payload that mints tokens to the admin
+    let payload = ExecutionPayload {
+        contract: token.address.clone(),
+        action: Symbol::new(&env, "mint"),
+        args: vec![&env, admin.to_val(), 1000i128.to_val()],
+    };
+    
+    let id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "Mint Tokens"),
+        &String::from_str(&env, "Mint tokens to treasury"),
+        &1_000_000i128,
+        &3600u64,
+        &Some(payload),
+    );
+    
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    let proposal = gov.get_proposal(&id);
+    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    gov.finalise(&id);
+    
+    let admin_bal_before = token.balance(&admin);
+    gov.execute(&admin, &id);
+    
+    assert_eq!(token.balance(&admin), admin_bal_before + 1000);
+    assert_eq!(gov.get_proposal(&id).state, ProposalState::Executed);
+}
+
+// ---------------------------------------------------------------------------
+// Issue #84: Active Proposal Limit
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_active_proposal_limit() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    
+    // Fill up to the limit (50)
+    for _ in 0..50 {
+        make_proposal(&gov, &env, &voter);
+    }
+    
+    // 51st should fail
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Too Many"),
+        &String::from_str(&env, "This should fail"),
+        &1_000_000i128,
+        &3600u64,
+        &None,
+    );
+    assert_eq!(result, Err(Ok(ContractError::ProposalsStillActive)));
 }

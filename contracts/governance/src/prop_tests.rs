@@ -48,10 +48,11 @@ proptest! {
             &voter,
             &String::from_str(&env, "Prop"),
             &String::from_str(&env, "Description"),
-            &(yes_weight / 2),
+            &quorum,
             &3600u64,
             &None,
         );
+
 
         gov.cast_vote(&voter, &id, &Vote::Yes);
         prop_assert!(gov.has_voted(&id, &voter));

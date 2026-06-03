@@ -8,8 +8,9 @@
 **Residual Risk:** None
 
 ### T2 — Malicious Proposer
-**Goal:** Create proposals that pass without genuine support.  
+**Goal:** Create proposals that pass without genuine support, or spam the system with low-quality proposals.  
 **Mitigations:** Quorum enforcement, `min_proposal_balance`, `proposal_cooldown`, admin cancel.  
+**Production Recommendation:** Always set `min_proposal_balance` to a non-zero value in production (e.g., 1% of total supply) to prevent sybil spam.  
 **Residual Risk:** Low
 
 ### T3 — Malicious Admin

@@ -238,6 +238,7 @@ pub fn initialize(
     voting_token: Address,
     min_proposal_balance: i128,
     proposal_cooldown: u64,
+    min_quorum_bps: u32,
     restrict_admin_vote: bool,
 ) -> Result<(), ContractError>
 ```
@@ -252,6 +253,7 @@ pub fn create_proposal(
     description: String,  // 1–1024 chars
     quorum: i128,         // > 0, <= total supply
     duration: u64,        // 60–2,592,000 seconds
+    payload: Option<ExecutionPayload>, // Optional on-chain action
 ) -> Result<u64, ContractError>
 ```
 
@@ -279,6 +281,20 @@ Pass conditions: `total_votes >= quorum AND votes_yes > votes_no`
 ```rust
 pub fn execute(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError>
 pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError>
+```
+
+### Admin Operations
+
+```rust
+// Update the governance token address (only if no active proposals)
+pub fn update_voting_token(env: Env, admin: Address, new_token: Address) -> Result<(), ContractError>
+
+// Update quorum for an active proposal
+pub fn update_quorum(env: Env, admin: Address, proposal_id: u64, new_quorum: i128) -> Result<(), ContractError>
+
+// Two-step admin transfer
+pub fn transfer_admin(env: Env, admin: Address, new_admin: Address) -> Result<(), ContractError>
+pub fn accept_admin(env: Env, pending_admin: Address) -> Result<(), ContractError>
 ```
 
 ---
@@ -380,6 +396,7 @@ See [docs/delegation.md](./docs/delegation.md) for the full delegation model and
 | `Admin` | `Address` | Admin address |
 | `VotingToken` | `Address` | Governance token address |
 | `ProposalCount` | `u64` | Monotonic proposal ID counter |
+| `ActiveProposalCount` | `u64` | Current number of non-terminal proposals |
 | `MinProposalBalance` | `i128` | Minimum balance to propose |
 | `ProposalCooldown` | `u64` | Seconds between proposals |
 | `RestrictAdminVote` | `bool` | Admin vote restriction flag |
