@@ -1,6 +1,7 @@
 # Storage Model
 
 CosmosVote uses Soroban's three storage tiers strategically to minimize costs.
+<!-- . -->
 
 ## Tiers
 

@@ -47,17 +47,17 @@ impl TokenEvents {
         );
     }
 
-    pub fn admin_transfer_proposed(env: &Env, current_admin: &Address, pending_admin: &Address) {
+    pub fn delegated(env: &Env, owner: &Address, delegate: &Address) {
         env.events().publish(
-            (symbol_short!("token"), symbol_short!("propose")),
-            (current_admin.clone(), pending_admin.clone()),
+            (symbol_short!("token"), symbol_short!("delegate")),
+            (owner.clone(), delegate.clone()),
         );
     }
 
-    pub fn admin_transfer_accepted(env: &Env, previous_admin: &Address, new_admin: &Address) {
+    pub fn undelegated(env: &Env, owner: &Address) {
         env.events().publish(
-            (symbol_short!("token"), symbol_short!("accept")),
-            (previous_admin.clone(), new_admin.clone()),
+            (symbol_short!("token"), symbol_short!("undelegt")),
+            owner.clone(),
         );
     }
 }
