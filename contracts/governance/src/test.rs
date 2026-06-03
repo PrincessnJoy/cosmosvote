@@ -444,6 +444,89 @@ fn test_vote_no_power_fails() {
 }
 
 // ---------------------------------------------------------------------------
+// Vote retraction and change (issue #7)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_retract_vote_removes_weight() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    gov.retract_vote(&voter, &id);
+    assert!(!gov.has_voted(&id, &voter));
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.votes_yes, 0);
+}
+
+#[test]
+fn test_retract_vote_allows_revote() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    gov.retract_vote(&voter, &id);
+    gov.cast_vote(&voter, &id, &Vote::No);
+    assert!(gov.has_voted(&id, &voter));
+    let record = gov.get_vote(&id, &voter);
+    assert_eq!(record.vote, Vote::No);
+}
+
+#[test]
+fn test_retract_vote_not_voted_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    let result = gov.try_retract_vote(&voter, &id);
+    assert_eq!(result, Err(Ok(ContractError::VoteNotFound)));
+}
+
+#[test]
+fn test_retract_vote_after_period_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    let proposal = gov.get_proposal(&id);
+    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    let result = gov.try_retract_vote(&voter, &id);
+    assert_eq!(result, Err(Ok(ContractError::VotingPeriodEnded)));
+}
+
+#[test]
+fn test_change_vote_updates_tallies() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    gov.change_vote(&voter, &id, &Vote::No);
+    let record = gov.get_vote(&id, &voter);
+    assert_eq!(record.vote, Vote::No);
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.votes_yes, 0);
+    assert_eq!(proposal.votes_no, 10_000_000);
+}
+
+#[test]
+fn test_change_vote_same_vote_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    let result = gov.try_change_vote(&voter, &id, &Vote::Yes);
+    assert_eq!(result, Err(Ok(ContractError::VoteAlreadySame)));
+}
+
+#[test]
+fn test_change_vote_not_voted_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    let result = gov.try_change_vote(&voter, &id, &Vote::No);
+    assert_eq!(result, Err(Ok(ContractError::VoteNotFound)));
+}
+
+// ---------------------------------------------------------------------------
 // Finalization
 // ---------------------------------------------------------------------------
 
