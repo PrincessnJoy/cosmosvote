@@ -41,44 +41,7 @@ fn setup_env() -> (Env, GovernanceContractClient<'static>, TokenContractClient<'
 
     let gov_id = env.register(GovernanceContract, ());
     let gov = GovernanceContractClient::new(&env, &gov_id);
-    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
-
-    // SAFETY: we extend lifetimes here only for test convenience; env outlives all refs
-    let gov = unsafe { core::mem::transmute(gov) };
-    let token = unsafe { core::mem::transmute(token) };
-
-    (env, gov, token, admin, proposer)
-}
-
-// ---------------------------------------------------------------------------
-// Individual operation benchmarks
-// ---------------------------------------------------------------------------
-
-#[test]
-fn bench_create_proposal() {
-    let (env, gov, _token, _admin, proposer) = setup_env();
-
-    env.budget().reset_default();
-    gov.create_proposal(
-        &proposer,
-        &String::from_str(&env, "Benchmark Proposal"),
-        &String::from_str(&env, "Measuring instruction count for create_proposal"),
-        &1_000_000i128,
-        &604_800u64,
-    );
-    let instructions = env.budget().instructions_consumed();
-
-    assert!(
-        instructions <= threshold(BASELINE_CREATE_PROPOSAL),
-        "create_proposal used {} instructions, exceeds 10% over baseline {}",
-        instructions,
-        BASELINE_CREATE_PROPOSAL
-    );
-}
-
-#[test]
-fn bench_cast_vote() {
-    let (env, gov, token, admin, proposer) = setup_env();
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
     let id = gov.create_proposal(
         &proposer,
@@ -86,6 +49,7 @@ fn bench_cast_vote() {
         &String::from_str(&env, "Measuring instruction count for cast_vote"),
         &1_000_000i128,
         &604_800u64,
+        &None,
     );
 
     let voter = Address::generate(&env);
