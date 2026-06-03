@@ -1,6 +1,7 @@
 # Storage Model
 
 CosmosVote uses Soroban's three storage tiers strategically to minimize costs.
+<!-- . -->
 
 ## Tiers
 
@@ -17,6 +18,7 @@ CosmosVote uses Soroban's three storage tiers strategically to minimize costs.
 | Key | Type | Notes |
 |-----|------|-------|
 | `Admin` | `Address` | Set once at init |
+| `PendingAdmin` | `Address` | Pending two-step transfer |
 | `VotingToken` | `Address` | Set once at init |
 | `MinProposalBalance` | `i128` | 0 = no minimum |
 | `ProposalCooldown` | `u64` | 0 = no cooldown |
@@ -42,6 +44,7 @@ CosmosVote uses Soroban's three storage tiers strategically to minimize costs.
 | Key | Type | Notes |
 |-----|------|-------|
 | `Admin` | `Address` | — |
+| `PendingAdmin` | `Address` | Pending two-step transfer |
 | `TotalSupply` | `i128` | Aggregate supply |
 | `Initialized` | `bool` | Init guard |
 | `Version` | `(u32, u32, u32)` | — |

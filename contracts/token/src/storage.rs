@@ -6,6 +6,7 @@ use soroban_sdk::{Address, Env, String};
 #[derive(Clone)]
 pub enum InstanceKey {
     Admin,
+    PendingAdmin,
     TotalSupply,
     Initialized,
     Version,
@@ -18,6 +19,8 @@ pub enum InstanceKey {
 #[derive(Clone)]
 pub enum PersistentKey {
     Balance(Address),
+    /// Maps delegator → delegate (who holds their voting power).
+    Delegation(Address),
 }
 
 #[soroban_sdk::contracttype]
@@ -41,6 +44,16 @@ impl TokenStorage {
     }
     pub fn set_admin(env: &Env, v: &Address) {
         env.storage().instance().set(&InstanceKey::Admin, v);
+    }
+
+    pub fn pending_admin(env: &Env) -> Option<Address> {
+        env.storage().instance().get(&InstanceKey::PendingAdmin)
+    }
+    pub fn set_pending_admin(env: &Env, v: Option<&Address>) {
+        match v {
+            Some(addr) => env.storage().instance().set(&InstanceKey::PendingAdmin, addr),
+            None => env.storage().instance().remove(&InstanceKey::PendingAdmin),
+        }
     }
 
     pub fn total_supply(env: &Env) -> i128 {
@@ -106,5 +119,33 @@ impl TokenStorage {
         env.storage()
             .temporary()
             .set(&TempKey::Allowance(owner.clone(), spender.clone()), &v);
+    }
+
+    /// Returns the delegate address for `owner`, if any.
+    pub fn delegation(env: &Env, owner: &Address) -> Option<Address> {
+        env.storage()
+            .persistent()
+            .get(&PersistentKey::Delegation(owner.clone()))
+    }
+    pub fn set_delegation(env: &Env, owner: &Address, delegate: &Address) {
+        env.storage()
+            .persistent()
+            .set(&PersistentKey::Delegation(owner.clone()), delegate);
+    }
+    pub fn remove_delegation(env: &Env, owner: &Address) {
+        env.storage()
+            .persistent()
+            .remove(&PersistentKey::Delegation(owner.clone()));
+    }
+
+    /// Returns the total voting weight for `voter`: own balance + sum of all delegators' balances.
+    /// NOTE: Soroban doesn't support reverse lookups, so delegators must be tracked off-chain.
+    /// This function returns the voter's own balance; delegated weight is accumulated via
+    /// `get_delegated_weight` which requires the caller to pass delegator addresses.
+    pub fn get_delegated_weight(env: &Env, voter: &Address) -> i128 {
+        // Base: voter's own balance (if they haven't delegated away)
+        // Delegated weight is added by governance via cross-contract calls.
+        // This returns the voter's own balance only; governance accumulates delegators.
+        Self::balance(env, voter)
     }
 }

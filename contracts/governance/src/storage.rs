@@ -17,6 +17,8 @@ pub enum InstanceKey {
     Admin,
     PendingAdmin,
     VotingToken,
+    TreasuryContract,
+    ProposalCount,
     MinProposalBalance,
     ProposalCooldown,
     MinQuorumBps,
@@ -77,6 +79,20 @@ impl GovernanceStorage {
     }
     pub fn set_voting_token(env: &Env, v: &Address) {
         env.storage().instance().set(&InstanceKey::VotingToken, v);
+    }
+
+    pub fn treasury_contract(env: &Env) -> Option<Address> {
+        env.storage().instance().get(&InstanceKey::TreasuryContract)
+    }
+    pub fn set_treasury_contract(env: &Env, v: &Address) {
+        env.storage().instance().set(&InstanceKey::TreasuryContract, v);
+    }
+
+    pub fn proposal_count(env: &Env) -> u64 {
+        env.storage().instance().get(&InstanceKey::ProposalCount).unwrap_or(0)
+    }
+    pub fn set_proposal_count(env: &Env, v: u64) {
+        env.storage().instance().set(&InstanceKey::ProposalCount, &v);
     }
 
     pub fn min_proposal_balance(env: &Env) -> i128 {
