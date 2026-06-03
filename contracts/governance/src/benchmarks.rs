@@ -22,7 +22,7 @@ fn run_voter_benchmark(voter_count: u32) {
 
     let gov_id = env.register(GovernanceContract, ());
     let gov = GovernanceContractClient::new(&env, &gov_id);
-    gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
     // Create a proposal
     let proposer = Address::generate(&env);
@@ -33,6 +33,7 @@ fn run_voter_benchmark(voter_count: u32) {
         &String::from_str(&env, "Stress testing governance with many voters"),
         &1_000_000i128,
         &604_800u64,
+        &None,
     );
 
     // Generate voters and cast votes

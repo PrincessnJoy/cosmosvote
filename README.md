@@ -14,7 +14,7 @@ CosmosVote enables DAOs, protocols, and communities to create proposals, cast to
 ## Table of Contents
 
 - [Project Overview](#project-overview)
-- [Architecture](#architecture)
+- [Architecture.](#architecture)
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
@@ -71,7 +71,32 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 │                    └────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
 ```
+### Frontend ↔ Contract Interaction
 
+The user flow between the frontend, wallet, Soroban RPC, and smart contracts is documented below. This flow is also available as a dedicated Mermaid diagram in [docs/frontend-contract-flow.md](docs/frontend-contract-flow.md).
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Frontend
+  participant Wallet
+  participant SorobanRPC
+  participant Contract
+
+  User->>Frontend: open app
+  Frontend->>Wallet: request wallet connect
+  Wallet-->>Frontend: wallet connected / account authorized
+  Frontend->>SorobanRPC: fetch proposals
+  SorobanRPC-->>Frontend: proposals list
+  User->>Frontend: select proposal and cast vote
+  Frontend->>Wallet: request transaction signature
+  Wallet-->>Frontend: signed transaction
+  Frontend->>SorobanRPC: submit transaction
+  SorobanRPC->>Contract: invoke voting contract
+  Contract-->>SorobanRPC: transaction result
+  SorobanRPC-->>Frontend: confirmation
+  Frontend->>User: display confirmation
+```
 ### Key Design Decisions
 
 | Decision | Approach |
@@ -103,9 +128,9 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 
 ### Prerequisites
 
-- Rust 1.75+ with `wasm32-unknown-unknown` target
+- Rust 1.75+ with `wasm32-unknown-unknown` target.
 - Stellar CLI (optional, for deployment)
-- Docker & Docker Compose (optional)
+- Docker & Docker Compose (optional).
 
 ### Installation & Testing
 
@@ -174,6 +199,17 @@ cosmosvote/
 │   ├── local.toml
 │   ├── testnet.toml
 │   └── mainnet.toml
+│
+├── notification-service/             # Off-chain notification service
+│   ├── src/
+│   │   ├── index.ts                  # CLI entry point
+│   │   ├── watcher.ts                # Horizon event poller
+│   │   ├── notifier.ts               # Email & webhook dispatch
+│   │   ├── subscriptions.ts          # Subscription management
+│   │   └── types.ts                  # Shared types
+│   ├── .env.example
+│   ├── package.json
+│   └── tsconfig.json
 │
 ├── frontend/                         # React + Vite proposal browser
 ├── Cargo.toml                        # Workspace manifest
@@ -431,7 +467,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). Quick checklist:
 - [SEP-41 Token Standard](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md)
 - [Architecture Decision Records](./docs/adr/)
 - [Security Documentation](./docs/security/)
-- [Operational Runbook](./docs/runbook.md)
+- [Notification Service](./docs/notification-service.md)
 
 ---
 
