@@ -2,7 +2,9 @@
 # deploy_mainnet.sh — Deploy CosmosVote contracts to Stellar mainnet.
 #
 # ⚠️  WARNING: This deploys to MAINNET. Transactions are irreversible.
-#     Double-check all parameters before running.
+#
+# Usage:
+#   ./deploy_mainnet.sh [--dry-run] [--yes] [--expected-token-hash <sha256>] [--expected-gov-hash <sha256>]
 set -euo pipefail
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
