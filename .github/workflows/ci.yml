@@ -100,7 +100,7 @@ jobs:
       - name: Check Rust dependency licenses
         run: cargo deny check licenses
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
       - name: Install frontend dependencies
