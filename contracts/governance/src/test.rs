@@ -143,6 +143,23 @@ fn make_proposal(gov: &GovernanceContractClient, env: &Env, proposer: &Address) 
 // ---------------------------------------------------------------------------
 
 #[test]
+fn test_upgrade_by_admin_succeeds() {
+    let env = Env::default();
+    let (gov, _, admin, _, _) = setup(&env);
+    let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
+    gov.upgrade(&admin, &new_wasm_hash);
+}
+
+#[test]
+fn test_upgrade_non_admin_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let new_wasm_hash = BytesN::from_array(&env, &[0u8; 32]);
+    let result = gov.try_upgrade(&voter, &new_wasm_hash);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
 fn test_initialize_success() {
     let env = Env::default();
     env.mock_all_auths();

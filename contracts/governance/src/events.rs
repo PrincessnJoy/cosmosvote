@@ -1,6 +1,6 @@
 //! Governance contract — on-chain event emission.
 
-use soroban_sdk::{symbol_short, Address, Env, String};
+use soroban_sdk::{symbol_short, Address, BytesN, Env, String};
 
 use crate::types::{ProposalState, Vote};
 
