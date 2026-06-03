@@ -14,7 +14,7 @@ jobs:
     name: Finalise expired proposals
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install Soroban CLI
         run: |
           curl -L https://soroban.stellar.org/install | bash
