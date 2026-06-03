@@ -53,3 +53,4 @@ For local Docker development, the repository uses a proxy service so the fronten
 | Arithmetic safety | `checked_add` on all vote accumulation |
 | Finalization correctness | Pass condition evaluated atomically |
 | Emergency response | Admin pause blocks all state-changing ops |
+.

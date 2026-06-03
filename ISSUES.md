@@ -1372,7 +1372,7 @@
 **Acceptance Criteria:**
 - Document the required CORS configuration for the RPC endpoint in `docs/`
 - Add a CORS check to the frontend startup (warn if RPC is unreachable)
-- For the local Docker setup, configure the quickstart node's CORS headers
+- For the local Docker setup, configure the quickstart node's CORS headers.
 
 **Priority:** Medium
 **Estimated Effort:** Small
@@ -1980,7 +1980,7 @@
 **Acceptance Criteria:**
 - Design a `MultiChoiceProposal` type with up to 10 options
 - Add `create_multi_choice_proposal` and `cast_multi_choice_vote` functions
-- The winning option is the one with the most votes (plurality)
+- The winning option is the one with the most votes (plurality).
 - Add tests and documentation
 
 **Priority:** Low
