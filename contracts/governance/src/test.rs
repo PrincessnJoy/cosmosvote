@@ -570,7 +570,7 @@ fn test_get_proposals_by_state() {
     
     let cancelled = gov.get_proposals_by_state(&ProposalState::Cancelled, &0, &10);
     assert_eq!(cancelled.len(), 1);
-    assert_eq!(cancelled.get(0).unwrap().id, 1);
+    assert_eq!(cancelled.get(0).unwrap().id, 1); // .
 }
 
 // ---------------------------------------------------------------------------
