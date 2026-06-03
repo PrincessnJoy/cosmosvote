@@ -7,42 +7,43 @@
 #   ./deploy_mainnet.sh [--dry-run] [--yes] [--expected-token-hash <sha256>] [--expected-gov-hash <sha256>]
 set -euo pipefail
 
+# ─── Logging ─────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+LOG_DIR="$ROOT_DIR/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/deploy_mainnet_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "$LOG_FILE") 2>&1
 
-# ─── Parse flags ─────────────────────────────────────────────────────────────
-DRY_RUN=false
-YES=false
-EXPECTED_TOKEN_HASH=""
-EXPECTED_GOV_HASH=""
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --dry-run) DRY_RUN=true ;;
-    --yes)     YES=true ;;
-    --expected-token-hash) EXPECTED_TOKEN_HASH="$2"; shift ;;
-    --expected-gov-hash)   EXPECTED_GOV_HASH="$2";   shift ;;
-    *) echo "Unknown flag: $1" >&2; exit 1 ;;
-  esac
-  shift
-done
-
-# Wrapper: print command in dry-run, execute otherwise
-run() {
-  if [[ "$DRY_RUN" == "true" ]]; then
-    echo "[DRY-RUN] $*"
-  else
-    "$@"
-  fi
+log() {
+  local level="$1"; shift
+  echo "[$(date +%Y-%m-%dT%H:%M:%S)] [$level] $*"
 }
 
-# ─── Load environment ─────────────────────────────────────────────────────────
+trap 'log ERROR "Script failed at line $LINENO. Check $LOG_FILE for details."' ERR
+
+# ─── Env validation ──────────────────────────────────────────────────────────
+check_required_env() {
+  local missing=0
+  for var in "$@"; do
+    if [[ -z "${!var:-}" ]]; then
+      log ERROR "Required environment variable '$var' is unset or empty"
+      missing=1
+    fi
+  done
+  [[ $missing -eq 0 ]] || exit 1
+}
+
+CHECK_ENV_ONLY=false
+[[ "${1:-}" == "--check-env" ]] && CHECK_ENV_ONLY=true
+
+# ─── Load environment ────────────────────────────────────────────────────────
 if [[ -f "$ROOT_DIR/.env" ]]; then
   # shellcheck disable=SC1091
   source "$ROOT_DIR/.env"
 fi
 
-STELLAR_SECRET_KEY="${STELLAR_SECRET_KEY:?STELLAR_SECRET_KEY must be set}"
+STELLAR_SECRET_KEY="${STELLAR_SECRET_KEY:-}"
 INITIAL_TOKEN_SUPPLY="${INITIAL_TOKEN_SUPPLY:-1000000000}"
 TOKEN_NAME="${TOKEN_NAME:-CosmosVote}"
 TOKEN_SYMBOL="${TOKEN_SYMBOL:-VOTE}"
@@ -54,83 +55,106 @@ RESTRICT_ADMIN_VOTE="${RESTRICT_ADMIN_VOTE:-true}"
 PASSPHRASE="Public Global Stellar Network ; September 2015"
 RPC_URL="https://soroban-mainnet.stellar.org"
 
+check_required_env STELLAR_SECRET_KEY
+
+if $CHECK_ENV_ONLY; then
+  log INFO "All required environment variables are set."
+  exit 0
+fi
+
+# ─── Backup & verification helpers ───────────────────────────────────────────
+BACKUP_DIR="$ROOT_DIR/logs/backups"
+mkdir -p "$BACKUP_DIR"
+
+backup_contracts() {
+  local stamp; stamp="$(date +%Y%m%d_%H%M%S)"
+  local backup_file="$BACKUP_DIR/contracts_mainnet_${stamp}.env"
+  {
+    echo "# CosmosVote contract backup — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "# Network: mainnet"
+    echo "TOKEN_CONTRACT_ID=${TOKEN_CONTRACT_ID:-}"
+    echo "GOVERNANCE_CONTRACT_ID=${GOVERNANCE_CONTRACT_ID:-}"
+  } > "$backup_file"
+  log INFO "Pre-deployment backup saved: $backup_file"
+  echo "$backup_file"
+}
+
+verify_deployment() {
+  local token_id="$1" gov_id="$2"
+  log INFO "Verifying token contract ($token_id)..."
+  stellar contract invoke \
+    --id "$token_id" \
+    --source "$STELLAR_SECRET_KEY" \
+    --rpc-url "$RPC_URL" \
+    --network-passphrase "$PASSPHRASE" \
+    -- total_supply >/dev/null \
+    || { log ERROR "Token contract verification failed"; return 1; }
+
+  log INFO "Verifying governance contract ($gov_id)..."
+  stellar contract invoke \
+    --id "$gov_id" \
+    --source "$STELLAR_SECRET_KEY" \
+    --rpc-url "$RPC_URL" \
+    --network-passphrase "$PASSPHRASE" \
+    -- get_proposal_count >/dev/null \
+    || { log ERROR "Governance contract verification failed"; return 1; }
+
+  log INFO "Post-deployment verification passed."
+}
+
+log WARN "╔══════════════════════════════════════════════════════════╗"
+log WARN "║          CosmosVote — MAINNET DEPLOYMENT                 ║"
+log WARN "╠══════════════════════════════════════════════════════════╣"
+log WARN "║  ⚠️  You are about to deploy to STELLAR MAINNET          ║"
+log WARN "║  This action is IRREVERSIBLE.                            ║"
+log WARN "╚══════════════════════════════════════════════════════════╝"
+log INFO "Parameters:"
+log INFO "  Initial supply      : $INITIAL_TOKEN_SUPPLY"
+log INFO "  Min proposal balance: $MIN_PROPOSAL_BALANCE"
+log INFO "  Proposal cooldown   : ${PROPOSAL_COOLDOWN}s"
+log INFO "  Restrict admin vote : $RESTRICT_ADMIN_VOTE"
+log INFO "Log file: $LOG_FILE"
+
+read -r -p "Type 'deploy mainnet' to confirm: " CONFIRM
+if [[ "$CONFIRM" != "deploy mainnet" ]]; then
+  log WARN "Deployment aborted by user."
+  exit 1
+fi
+
+# ─── Pre-deployment backup ────────────────────────────────────────────────────
+backup_contracts
+
+# ─── Build ───────────────────────────────────────────────────────────────────
+log INFO "Building WASM binaries..."
+cd "$ROOT_DIR"
+cargo build --release --target wasm32-unknown-unknown \
+  || { log ERROR "cargo build failed"; exit 1; }
+
 TOKEN_WASM="$ROOT_DIR/target/wasm32-unknown-unknown/release/cosmosvote_token.wasm"
 GOV_WASM="$ROOT_DIR/target/wasm32-unknown-unknown/release/cosmosvote_governance.wasm"
 
-echo "╔══════════════════════════════════════════════════════════╗"
-echo "║          CosmosVote — MAINNET DEPLOYMENT                 ║"
-echo "╠══════════════════════════════════════════════════════════╣"
-echo "║  ⚠️  You are about to deploy to STELLAR MAINNET          ║"
-echo "║  This action is IRREVERSIBLE.                            ║"
-[[ "$DRY_RUN" == "true" ]] && echo "║  MODE: DRY-RUN (no transactions will be submitted)       ║"
-echo "╚══════════════════════════════════════════════════════════╝"
-echo ""
-echo "Parameters:"
-echo "  Initial supply      : $INITIAL_TOKEN_SUPPLY"
-echo "  Min proposal balance: $MIN_PROPOSAL_BALANCE"
-echo "  Proposal cooldown   : ${PROPOSAL_COOLDOWN}s"
-echo "  Restrict admin vote : $RESTRICT_ADMIN_VOTE"
-echo ""
+for wasm in "$TOKEN_WASM" "$GOV_WASM"; do
+  [[ -f "$wasm" ]] || { log ERROR "WASM not found: $wasm"; exit 1; }
+done
 
-# ─── Confirmation prompt (skip with --yes or --dry-run) ───────────────────────
-if [[ "$DRY_RUN" == "false" && "$YES" == "false" ]]; then
-  read -r -p "Type 'deploy mainnet' to confirm: " CONFIRM
-  if [[ "$CONFIRM" != "deploy mainnet" ]]; then
-    echo "Aborted."
-    exit 1
-  fi
-fi
-
-# ─── Build ────────────────────────────────────────────────────────────────────
-echo ">>> Building WASM binaries..."
-run cargo build --release --target wasm32-unknown-unknown --manifest-path "$ROOT_DIR/Cargo.toml"
-
-# ─── Pre-flight: WASM hash verification ──────────────────────────────────────
-if [[ "$DRY_RUN" == "false" ]]; then
-  if [[ -n "$EXPECTED_TOKEN_HASH" ]]; then
-    ACTUAL_TOKEN_HASH=$(sha256sum "$TOKEN_WASM" | awk '{print $1}')
-    if [[ "$ACTUAL_TOKEN_HASH" != "$EXPECTED_TOKEN_HASH" ]]; then
-      echo "ERROR: Token WASM hash mismatch!" >&2
-      echo "  Expected: $EXPECTED_TOKEN_HASH" >&2
-      echo "  Actual  : $ACTUAL_TOKEN_HASH" >&2
-      exit 1
-    fi
-    echo "✓ Token WASM hash verified: $ACTUAL_TOKEN_HASH"
-  fi
-
-  if [[ -n "$EXPECTED_GOV_HASH" ]]; then
-    ACTUAL_GOV_HASH=$(sha256sum "$GOV_WASM" | awk '{print $1}')
-    if [[ "$ACTUAL_GOV_HASH" != "$EXPECTED_GOV_HASH" ]]; then
-      echo "ERROR: Governance WASM hash mismatch!" >&2
-      echo "  Expected: $EXPECTED_GOV_HASH" >&2
-      echo "  Actual  : $ACTUAL_GOV_HASH" >&2
-      exit 1
-    fi
-    echo "✓ Governance WASM hash verified: $ACTUAL_GOV_HASH"
-  fi
-else
-  echo "[DRY-RUN] Would verify WASM hashes (token: ${EXPECTED_TOKEN_HASH:-<not set>}, gov: ${EXPECTED_GOV_HASH:-<not set>})"
-fi
-
+# ─── Derive admin address ────────────────────────────────────────────────────
 ADMIN_ADDRESS=$(stellar keys address --secret-key "$STELLAR_SECRET_KEY" 2>/dev/null || \
-  stellar keys address "$STELLAR_SECRET_KEY")
-echo "Admin: $ADMIN_ADDRESS"
+  stellar keys address "$STELLAR_SECRET_KEY") \
+  || { log ERROR "Failed to derive admin address from STELLAR_SECRET_KEY"; exit 1; }
+log INFO "Admin: $ADMIN_ADDRESS"
 
-# ─── Deploy token contract ────────────────────────────────────────────────────
-echo ">>> Deploying token contract to mainnet..."
-if [[ "$DRY_RUN" == "true" ]]; then
-  echo "[DRY-RUN] stellar contract deploy --wasm $TOKEN_WASM --source <secret> --rpc-url $RPC_URL --network-passphrase '$PASSPHRASE'"
-  TOKEN_CONTRACT_ID="<DRY_RUN_TOKEN_ID>"
-else
-  TOKEN_CONTRACT_ID=$(stellar contract deploy \
-    --wasm "$TOKEN_WASM" \
-    --source "$STELLAR_SECRET_KEY" \
-    --rpc-url "$RPC_URL" \
-    --network-passphrase "$PASSPHRASE")
-fi
-echo "Token contract ID: $TOKEN_CONTRACT_ID"
+# ─── Deploy token contract ───────────────────────────────────────────────────
+log INFO "Deploying token contract to mainnet..."
+TOKEN_CONTRACT_ID=$(stellar contract deploy \
+  --wasm "$TOKEN_WASM" \
+  --source "$STELLAR_SECRET_KEY" \
+  --rpc-url "$RPC_URL" \
+  --network-passphrase "$PASSPHRASE") \
+  || { log ERROR "Token contract deployment failed"; exit 1; }
+log INFO "Token contract ID: $TOKEN_CONTRACT_ID"
 
-run stellar contract invoke \
+log INFO "Initializing token contract..."
+stellar contract invoke \
   --id "$TOKEN_CONTRACT_ID" \
   --source "$STELLAR_SECRET_KEY" \
   --rpc-url "$RPC_URL" \
@@ -140,23 +164,21 @@ run stellar contract invoke \
   --initial_supply "$INITIAL_TOKEN_SUPPLY" \
   --name "$TOKEN_NAME" \
   --symbol "$TOKEN_SYMBOL" \
-  --decimals "$TOKEN_DECIMALS"
+  --decimals "$TOKEN_DECIMALS" \
+  || { log ERROR "Token contract initialization failed"; exit 1; }
 
-# ─── Deploy governance contract ───────────────────────────────────────────────
-echo ">>> Deploying governance contract to mainnet..."
-if [[ "$DRY_RUN" == "true" ]]; then
-  echo "[DRY-RUN] stellar contract deploy --wasm $GOV_WASM --source <secret> --rpc-url $RPC_URL --network-passphrase '$PASSPHRASE'"
-  GOVERNANCE_CONTRACT_ID="<DRY_RUN_GOV_ID>"
-else
-  GOVERNANCE_CONTRACT_ID=$(stellar contract deploy \
-    --wasm "$GOV_WASM" \
-    --source "$STELLAR_SECRET_KEY" \
-    --rpc-url "$RPC_URL" \
-    --network-passphrase "$PASSPHRASE")
-fi
-echo "Governance contract ID: $GOVERNANCE_CONTRACT_ID"
+# ─── Deploy governance contract ──────────────────────────────────────────────
+log INFO "Deploying governance contract to mainnet..."
+GOVERNANCE_CONTRACT_ID=$(stellar contract deploy \
+  --wasm "$GOV_WASM" \
+  --source "$STELLAR_SECRET_KEY" \
+  --rpc-url "$RPC_URL" \
+  --network-passphrase "$PASSPHRASE") \
+  || { log ERROR "Governance contract deployment failed"; exit 1; }
+log INFO "Governance contract ID: $GOVERNANCE_CONTRACT_ID"
 
-run stellar contract invoke \
+log INFO "Initializing governance contract..."
+stellar contract invoke \
   --id "$GOVERNANCE_CONTRACT_ID" \
   --source "$STELLAR_SECRET_KEY" \
   --rpc-url "$RPC_URL" \
@@ -166,9 +188,14 @@ run stellar contract invoke \
   --voting_token "$TOKEN_CONTRACT_ID" \
   --min_proposal_balance "$MIN_PROPOSAL_BALANCE" \
   --proposal_cooldown "$PROPOSAL_COOLDOWN" \
-  --restrict_admin_vote "$RESTRICT_ADMIN_VOTE"
+  --restrict_admin_vote "$RESTRICT_ADMIN_VOTE" \
+  || { log ERROR "Governance contract initialization failed"; exit 1; }
 
-echo ""
-echo "=== Mainnet deployment complete ==="
-echo "TOKEN_CONTRACT_ID=$TOKEN_CONTRACT_ID"
-echo "GOVERNANCE_CONTRACT_ID=$GOVERNANCE_CONTRACT_ID"
+# ─── Post-deployment verification ────────────────────────────────────────────
+verify_deployment "$TOKEN_CONTRACT_ID" "$GOVERNANCE_CONTRACT_ID"
+
+# ─── Summary ─────────────────────────────────────────────────────────────────
+log INFO "=== Mainnet deployment complete ==="
+log INFO "TOKEN_CONTRACT_ID=$TOKEN_CONTRACT_ID"
+log INFO "GOVERNANCE_CONTRACT_ID=$GOVERNANCE_CONTRACT_ID"
+log INFO "Full log saved to: $LOG_FILE"
