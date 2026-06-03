@@ -12,7 +12,7 @@
     "license-check": "license-checker --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;CC0-1.0;Unlicense;0BSD;Python-2.0' --excludePrivatePackages"
   },
   "dependencies": {
-    "@stellar/freighter-api": "^3.0.0",
+    "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "12.3.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
