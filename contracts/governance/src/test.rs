@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env, String};
 
 use crate::{
     types::{ContractError, ProposalState, Vote},
@@ -31,6 +31,80 @@ fn setup(env: &Env) -> (GovernanceContractClient<'_>, TokenContractClient<'_>, A
     gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
 
     (gov, token, admin, voter, voter2)
+}
+
+#[soroban_sdk::contracttype]
+#[derive(Clone)]
+pub enum MaliciousTokenInstanceKey {
+    Governance,
+    ProposalId,
+    Attacker,
+    Balance(Address),
+    AttackSucceeded,
+}
+
+pub struct MaliciousTokenStorage;
+
+impl MaliciousTokenStorage {
+    pub fn set_governance(env: &Env, v: &Address) {
+        env.storage().instance().set(&MaliciousTokenInstanceKey::Governance, v);
+    }
+
+    pub fn governance(env: &Env) -> Address {
+        env.storage().instance().get(&MaliciousTokenInstanceKey::Governance).unwrap()
+    }
+
+    pub fn set_proposal_id(env: &Env, v: &u64) {
+        env.storage().instance().set(&MaliciousTokenInstanceKey::ProposalId, v);
+    }
+
+    pub fn proposal_id(env: &Env) -> u64 {
+        env.storage().instance().get(&MaliciousTokenInstanceKey::ProposalId).unwrap_or(0)
+    }
+
+    pub fn set_attacker(env: &Env, v: &Address) {
+        env.storage().instance().set(&MaliciousTokenInstanceKey::Attacker, v);
+    }
+
+    pub fn attacker(env: &Env) -> Address {
+        env.storage().instance().get(&MaliciousTokenInstanceKey::Attacker).unwrap()
+    }
+
+    pub fn set_balance(env: &Env, owner: &Address, v: &i128) {
+        env.storage().persistent().set(&MaliciousTokenInstanceKey::Balance(owner.clone()), v);
+    }
+
+    pub fn balance(env: &Env, owner: &Address) -> i128 {
+        env.storage().persistent().get(&MaliciousTokenInstanceKey::Balance(owner.clone())).unwrap_or(0)
+    }
+
+    pub fn set_attack_succeeded(env: &Env, v: &bool) {
+        env.storage().instance().set(&MaliciousTokenInstanceKey::AttackSucceeded, v);
+    }
+
+    pub fn attack_succeeded(env: &Env) -> bool {
+        env.storage().instance().get(&MaliciousTokenInstanceKey::AttackSucceeded).unwrap_or(false)
+    }
+}
+
+#[contract]
+pub struct MaliciousTokenContract;
+
+#[contractimpl]
+impl MaliciousTokenContract {
+    pub fn balance_at(env: Env, owner: Address, _ledger: u64) -> i128 {
+        let attacker = MaliciousTokenStorage::attacker(&env);
+        if owner == attacker {
+            let gov = GovernanceContractClient::new(&env, &MaliciousTokenStorage::governance(&env));
+            let record = gov.try_cast_vote(&owner, &MaliciousTokenStorage::proposal_id(&env), &Vote::Yes);
+            MaliciousTokenStorage::set_attack_succeeded(&env, &record.is_ok());
+        }
+        MaliciousTokenStorage::balance(&env, &owner)
+    }
+
+    pub fn total_supply(_env: Env) -> i128 {
+        0
+    }
 }
 
 #[test]
@@ -234,6 +308,44 @@ fn test_cast_vote_abstain() {
     gov.cast_vote(&voter2, &id, &Vote::Abstain);
     let record = gov.get_vote(&id, &voter2);
     assert_eq!(record.vote, Vote::Abstain);
+}
+
+#[test]
+fn test_cast_vote_reentrancy_via_token_balance_at_is_blocked() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let attacker = Address::generate(&env);
+
+    let token_id = env.register(MaliciousTokenContract, ());
+    MaliciousTokenStorage::set_attacker(&env, &attacker);
+    MaliciousTokenStorage::set_balance(&env, &attacker, &10_000_000i128);
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
+
+    MaliciousTokenStorage::set_governance(&env, &gov_id);
+
+    let proposal_id = gov.create_proposal(
+        &attacker,
+        &String::from_str(&env, "Attack proposal"),
+        &String::from_str(&env, "Attempt reentrancy during vote"),
+        &1_000_000i128,
+        &604_800u64,
+    )
+    .expect("should create proposal");
+
+    MaliciousTokenStorage::set_proposal_id(&env, &proposal_id);
+
+    gov.cast_vote(&attacker, &proposal_id, &Vote::Yes)
+        .expect("outer vote should succeed");
+
+    let proposal = gov.get_proposal(&proposal_id);
+    assert_eq!(proposal.votes_yes, 10_000_000i128);
+    assert_eq!(proposal.votes_no, 0);
+    assert!(!MaliciousTokenStorage::attack_succeeded(&env), "reentrant vote must not succeed");
 }
 
 #[test]
