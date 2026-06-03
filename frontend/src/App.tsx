@@ -10,6 +10,11 @@ import { formatTokenAmount } from './utils';
 import './responsive.css';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
+const PAGE_SIZE = 20;
+
+async function connect() {
+  // wallet connection placeholder
+}
 
 // Admin address — in production this would come from the contract or environment config
 const ADMIN_ADDRESS = import.meta.env.VITE_ADMIN_ADDRESS ?? null;
@@ -207,6 +212,17 @@ export default function App() {
             }} />
           ))}
         </div>
+
+        {!loading && filtered.length > 0 && (
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            totalCount={filtered.length}
+            pageSize={PAGE_SIZE}
+            onPrev={() => setPage(p => Math.max(1, p - 1))}
+            onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+          />
+        )}
       </main>
       </ErrorBoundary>
 
