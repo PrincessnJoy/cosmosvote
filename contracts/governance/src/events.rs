@@ -70,6 +70,42 @@ impl GovernanceEvents {
         );
     }
 
+    pub fn admin_transfer_initiated(env: &Env, current_admin: &Address, pending_admin: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("admint")),
+            (current_admin.clone(), pending_admin.clone()),
+        );
+    }
+
+    pub fn admin_transfer_completed(env: &Env, previous_admin: &Address, new_admin: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("admina")),
+            (previous_admin.clone(), new_admin.clone()),
+        );
+    }
+
+    pub fn proposal_amended(
+        env: &Env,
+        proposal_id: u64,
+        proposer: &Address,
+        old_title: &String,
+        new_title: &String,
+        old_description: &String,
+        new_description: &String,
+    ) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("amended")),
+            (
+                proposal_id,
+                proposer.clone(),
+                old_title.clone(),
+                new_title.clone(),
+                old_description.clone(),
+                new_description.clone(),
+            ),
+        );
+    }
+
     pub fn paused(env: &Env, admin: &Address) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("paused")),

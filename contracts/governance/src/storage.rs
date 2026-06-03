@@ -15,7 +15,9 @@ use crate::types::{ContractState, Proposal, ProposalState, VoteRecord};
 #[derive(Clone)]
 pub enum InstanceKey {
     Admin,
+    PendingAdmin,
     VotingToken,
+    TreasuryContract,
     ProposalCount,
     MinProposalBalance,
     ProposalCooldown,
@@ -51,11 +53,28 @@ impl GovernanceStorage {
         env.storage().instance().set(&InstanceKey::Admin, v);
     }
 
+    pub fn pending_admin(env: &Env) -> Option<Address> {
+        env.storage().instance().get(&InstanceKey::PendingAdmin)
+    }
+    pub fn set_pending_admin(env: &Env, v: Option<&Address>) {
+        match v {
+            Some(addr) => env.storage().instance().set(&InstanceKey::PendingAdmin, addr),
+            None => env.storage().instance().remove(&InstanceKey::PendingAdmin),
+        }
+    }
+
     pub fn voting_token(env: &Env) -> Address {
         env.storage().instance().get(&InstanceKey::VotingToken).unwrap()
     }
     pub fn set_voting_token(env: &Env, v: &Address) {
         env.storage().instance().set(&InstanceKey::VotingToken, v);
+    }
+
+    pub fn treasury_contract(env: &Env) -> Option<Address> {
+        env.storage().instance().get(&InstanceKey::TreasuryContract)
+    }
+    pub fn set_treasury_contract(env: &Env, v: &Address) {
+        env.storage().instance().set(&InstanceKey::TreasuryContract, v);
     }
 
     pub fn proposal_count(env: &Env) -> u64 {

@@ -14,7 +14,7 @@ CosmosVote enables DAOs, protocols, and communities to create proposals, cast to
 ## Table of Contents
 
 - [Project Overview](#project-overview)
-- [Architecture](#architecture)
+- [Architecture.](#architecture)
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [Project Structure](#project-structure)
@@ -71,7 +71,32 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 │                    └────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
 ```
+### Frontend ↔ Contract Interaction
 
+The user flow between the frontend, wallet, Soroban RPC, and smart contracts is documented below. This flow is also available as a dedicated Mermaid diagram in [docs/frontend-contract-flow.md](docs/frontend-contract-flow.md).
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Frontend
+  participant Wallet
+  participant SorobanRPC
+  participant Contract
+
+  User->>Frontend: open app
+  Frontend->>Wallet: request wallet connect
+  Wallet-->>Frontend: wallet connected / account authorized
+  Frontend->>SorobanRPC: fetch proposals
+  SorobanRPC-->>Frontend: proposals list
+  User->>Frontend: select proposal and cast vote
+  Frontend->>Wallet: request transaction signature
+  Wallet-->>Frontend: signed transaction
+  Frontend->>SorobanRPC: submit transaction
+  SorobanRPC->>Contract: invoke voting contract
+  Contract-->>SorobanRPC: transaction result
+  SorobanRPC-->>Frontend: confirmation
+  Frontend->>User: display confirmation
+```
 ### Key Design Decisions
 
 | Decision | Approach |
@@ -103,9 +128,9 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 
 ### Prerequisites
 
-- Rust 1.75+ with `wasm32-unknown-unknown` target
+- Rust 1.75+ with `wasm32-unknown-unknown` target.
 - Stellar CLI (optional, for deployment)
-- Docker & Docker Compose (optional)
+- Docker & Docker Compose (optional).
 
 ### Installation & Testing
 
@@ -162,7 +187,8 @@ cosmosvote/
 │   ├── lifecycle.md
 │   ├── storage.md
 │   ├── errors.md
-│   └── faq.md
+│   ├── faq.md
+│   └── runbook.md
 │
 ├── scripts/
 │   ├── deploy.sh                     # Deploy to local/testnet
@@ -173,6 +199,17 @@ cosmosvote/
 │   ├── local.toml
 │   ├── testnet.toml
 │   └── mainnet.toml
+│
+├── notification-service/             # Off-chain notification service
+│   ├── src/
+│   │   ├── index.ts                  # CLI entry point
+│   │   ├── watcher.ts                # Horizon event poller
+│   │   ├── notifier.ts               # Email & webhook dispatch
+│   │   ├── subscriptions.ts          # Subscription management
+│   │   └── types.ts                  # Shared types
+│   ├── .env.example
+│   ├── package.json
+│   └── tsconfig.json
 │
 ├── frontend/                         # React + Vite proposal browser
 ├── Cargo.toml                        # Workspace manifest
@@ -247,11 +284,29 @@ pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), Contract
 
 ## Token Contract Reference
 
+### SEP-41 Compliance
+
+The CosmosVote token contract implements the **Stellar Enhancement Proposal 41 (SEP-41)** standard for token contracts on Soroban. This ensures wallet and explorer compatibility for token discovery, display, and transfer operations.
+
 ### Initialization
 
 ```rust
-pub fn initialize(env: Env, admin: Address, initial_supply: i128) -> Result<(), ContractError>
+pub fn initialize(
+    env: Env,
+    admin: Address,
+    initial_supply: i128,
+    name: String,
+    symbol: String,
+    decimals: u32
+) -> Result<(), ContractError>
 ```
+
+**Parameters:**
+- `admin` — Receives initial supply and admin privileges
+- `initial_supply` — Total tokens minted to admin
+- `name` — Human-readable token name (e.g., "CosmosVote")
+- `symbol` — Ticker symbol (e.g., "VOTE")
+- `decimals` — Number of decimal places (typically 7 for Stellar)
 
 ### Core Operations
 
@@ -259,8 +314,19 @@ pub fn initialize(env: Env, admin: Address, initial_supply: i128) -> Result<(), 
 pub fn transfer(env: Env, from: Address, to: Address, amount: i128) -> Result<(), ContractError>
 pub fn mint(env: Env, admin: Address, to: Address, amount: i128) -> Result<(), ContractError>
 pub fn burn(env: Env, admin: Address, from: Address, amount: i128) -> Result<(), ContractError>
+pub fn burn_self(env: Env, owner: Address, amount: i128) -> Result<(), ContractError>
 pub fn approve(env: Env, owner: Address, spender: Address, amount: i128) -> Result<(), ContractError>
 pub fn transfer_from(env: Env, spender: Address, from: Address, to: Address, amount: i128) -> Result<(), ContractError>
+```
+
+### SEP-41 Query Functions
+
+```rust
+pub fn name(env: Env) -> String              // Token name
+pub fn symbol(env: Env) -> String            // Ticker symbol
+pub fn decimals(env: Env) -> u32             // Decimal places
+pub fn total_supply(env: Env) -> i128        // Total supply
+pub fn balance(env: Env, owner: Address) -> i128  // Account balance
 ```
 
 ---
@@ -326,6 +392,30 @@ cp .env.example .env
 ```
 
 Key variables: `NETWORK`, `STELLAR_RPC_URL`, `STELLAR_SECRET_KEY`, `GOVERNANCE_CONTRACT_ID`, `TOKEN_CONTRACT_ID`.
+
+### `restrict_admin_vote` flag
+
+The `restrict_admin_vote` parameter passed to `initialize` controls a narrow voting restriction on the admin:
+
+- **`false` (default):** The admin can vote on any proposal, including ones they created.
+- **`true`:** The admin is blocked from voting **only on proposals that the admin themselves created**. The admin can still vote freely on proposals created by other addresses.
+
+This is intentionally scoped — it prevents a conflict of interest when the admin is also the proposer, without removing the admin's ability to participate in governance generally.
+
+> **Note:** This behavior is tracked in issue #14, which documents the ambiguity in the original specification. The current implementation blocks admin voting only when `voter == admin && proposal.proposer == admin`.
+
+**Example:**
+
+```rust
+// Admin creates a proposal — admin CANNOT vote on it when restrict_admin_vote = true
+gov.initialize(&admin, &token_id, &0, &0, &0, &true);
+let id = gov.create_proposal(&admin, ...);
+gov.cast_vote(&admin, &id, &Vote::Yes); // → Err(AdminVoteRestricted)
+
+// Admin votes on a proposal created by someone else — this is ALLOWED
+let id2 = gov.create_proposal(&other_user, ...);
+gov.cast_vote(&admin, &id2, &Vote::Yes); // → Ok(())
+```
 
 ---
 
@@ -401,6 +491,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). Quick checklist:
 - [SEP-41 Token Standard](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md)
 - [Architecture Decision Records](./docs/adr/)
 - [Security Documentation](./docs/security/)
+- [Notification Service](./docs/notification-service.md)
 
 ---
 

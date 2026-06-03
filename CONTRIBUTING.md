@@ -43,6 +43,50 @@ Open a GitHub Discussion or Issue tagged `enhancement`. Describe the use case an
 7. **Push** your branch: `git push origin feat/your-feature-name`
 8. **Open a Pull Request** against `main`
 
+## Smart Contract Development
+
+### Adding a new contract function
+- Add the public function in `contracts/<contract>/src/lib.rs`.
+- Add any required storage accessors in `contracts/<contract>/src/storage.rs`.
+- Add new errors to `contracts/<contract>/src/types.rs` when needed.
+- Add on-chain events in `contracts/<contract>/src/events.rs` for state changes.
+- Privileged functions must call `require_auth()` and validate inputs.
+
+### Writing unit tests
+- Add unit tests in `contracts/<contract>/src/test.rs`.
+- Use `Env::default()` and `env.mock_all_auths()`.
+- Register the contract client, initialize it, and exercise the new API.
+- Test both success and failure conditions using `try_*` helpers.
+- Verify state changes with `assert_eq!` and event behavior where applicable.
+
+### Adding property tests
+- Add property-based tests in `contracts/<contract>/src/prop_tests.rs`.
+- Use `proptest::prelude::*` and clear invariants.
+- Keep property tests focused on safety invariants such as no double-vote, supply limits, or authorization guarantees.
+- Use `prop_assert!` / `prop_assert_eq!` for assertions.
+
+### Updating events
+- Add new event emission methods in `contracts/<contract>/src/events.rs`.
+- Emit events for every meaningful state transition or admin action.
+- Use consistent event symbols and payload ordering.
+
+### Updating storage
+- Update `InstanceKey`, `PersistentKey`, or `TempKey` enums in `contracts/<contract>/src/storage.rs`.
+- Add helper getters/setters for new storage fields.
+- Keep storage keys stable and avoid changing existing keys unless necessary.
+
+## Code Review Checklist for Contract PRs
+- [ ] Public contract API changes are documented
+- [ ] Authorization is enforced on privileged entry points
+- [ ] Input validation is implemented for all new functions
+- [ ] State updates are covered by unit tests
+- [ ] Failure cases are covered by `try_*` tests
+- [ ] Property tests are added or updated for contract invariants
+- [ ] Events are emitted for relevant state changes
+- [ ] Storage schema changes are tracked in storage helpers
+- [ ] Documentation and README are updated if needed
+- [ ] `make fmt`, `make lint`, and `make test` pass
+
 ## Pull Request Requirements
 
 - [ ] All tests pass (`make test`)
@@ -72,6 +116,45 @@ To configure these rules via GitHub repository settings:
 6. Check **Do not allow bypassing the above settings**.
 7. Ensure **Allow force pushes** is unchecked.
 8. Click **Create** or **Save changes**.
+
+## License Compliance
+
+CosmosVote is Apache 2.0 licensed. All dependencies must use compatible permissive licenses. CI enforces this automatically on every PR.
+
+### Allowed licenses
+
+| License | Rust (cargo-deny) | Frontend (license-checker) |
+|---|---|---|
+| Apache-2.0 | ✅ | ✅ |
+| MIT | ✅ | ✅ |
+| BSD-2-Clause | ✅ | ✅ |
+| BSD-3-Clause | ✅ | ✅ |
+| ISC | ✅ | ✅ |
+| CC0-1.0 | ✅ | ✅ |
+| Zlib | ✅ | — |
+| Unicode-DFS-2016 / Unicode-3.0 | ✅ | — |
+| Unlicense / 0BSD | — | ✅ |
+
+### Denied licenses
+
+GPL-2.0, GPL-3.0, AGPL-3.0, LGPL-2.0, LGPL-2.1, LGPL-3.0, EUPL-1.1, EUPL-1.2, SSPL-1.0, BUSL-1.1 — and any unknown or unlicensed dependency.
+
+### Adding a dependency with an unlisted license
+
+1. Verify the license is permissive and compatible with Apache 2.0.
+2. Add it to the `allow` list in `deny.toml` (Rust) or to `--onlyAllow` in the `license-check` script in `frontend/package.json`.
+3. Add a note in your PR explaining the addition.
+
+### Running checks locally
+
+```bash
+# Rust
+cargo install cargo-deny --locked
+cargo deny check licenses
+
+# Frontend
+cd frontend && npm ci && npm run license-check
+```
 
 ## Coding Standards
 
