@@ -83,15 +83,22 @@ export default function App() {
       <AriaLive polite={announcement} assertive={error ?? undefined} />
 
       {/* Header */}
-      <header style={{ background: '#1e293b', color: '#fff', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header style={{ background: 'var(--bg-header)', color: 'var(--text-header)', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '1.5rem' }}>🌌 CosmosVote</h1>
-          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>On-chain governance · {ACTIVE_NETWORK}</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-header-sub)' }}>On-chain governance · {ACTIVE_NETWORK}</span>
         </div>
-        <div style={{ textAlign: 'right' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <button
+            onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            style={{ background: 'none', border: '1px solid var(--text-header-sub)', borderRadius: 6, padding: '0.4rem 0.6rem', cursor: 'pointer', color: 'var(--text-header)', fontSize: '1rem', lineHeight: 1 }}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           {walletAddress ? (
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-header-sub)' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
               {tokenBalance !== null && (
                 <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
               )}
@@ -122,13 +129,13 @@ export default function App() {
             placeholder="Search proposals..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1, minWidth: 200, padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.875rem' }}
+            style={{ flex: 1, minWidth: 200, padding: '0.5rem 0.75rem', border: '1px solid var(--input-border)', borderRadius: 6, fontSize: '0.875rem', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
             aria-label="Search proposals"
           />
           <select
             value={stateFilter}
             onChange={e => setStateFilter(e.target.value as ProposalState | 'All')}
-            style={{ padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.875rem' }}
+            style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--input-border)', borderRadius: 6, fontSize: '0.875rem', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
             aria-label="Filter by state"
           >
             <option value="All">All States</option>
@@ -145,14 +152,14 @@ export default function App() {
         {/* Stats bar */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           {[
-            { label: 'Total', count: proposals.length, color: '#1e293b' },
+            { label: 'Total', count: proposals.length, color: 'var(--text-primary)' },
             { label: 'Active', count: proposals.filter(p => p.state === 'Active').length, color: '#2563eb' },
             { label: 'Passed', count: proposals.filter(p => p.state === 'Passed').length, color: '#16a34a' },
             { label: 'Executed', count: proposals.filter(p => p.state === 'Executed').length, color: '#7c3aed' },
           ].map(({ label, count, color }) => (
-            <div key={label} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.5rem 1rem', textAlign: 'center' }}>
+            <div key={label} style={{ background: 'var(--bg-stat)', border: '1px solid var(--border-color)', borderRadius: 8, padding: '0.5rem 1rem', textAlign: 'center' }}>
               <div style={{ fontSize: '1.25rem', fontWeight: 700, color }}>{count}</div>
-              <div style={{ fontSize: '0.75rem', color: '#888' }}>{label}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{label}</div>
             </div>
           ))}
         </div>
@@ -174,7 +181,7 @@ export default function App() {
             </>
           )}
           {!loading && !error && filtered.length === 0 && (
-            <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
+            <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
             <ProposalCard key={String(p.id)} proposal={p} onClick={(e) => {
