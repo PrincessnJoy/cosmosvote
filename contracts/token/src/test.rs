@@ -258,6 +258,11 @@ fn test_version() {
     let env = Env::default();
     let (token, _, _) = setup(&env);
     assert_eq!(token.version(), (1u32, 0u32, 0u32));
+
+    env.as_contract(&token.address, || {
+        crate::storage::TokenStorage::set_version(&env, (2, 1, 0));
+    });
+    assert_eq!(token.version(), (2u32, 1u32, 0u32));
 }
 
 // ---------------------------------------------------------------------------

@@ -1023,6 +1023,11 @@ fn test_version() {
     let env = Env::default();
     let (gov, _, _, _, _) = setup(&env);
     assert_eq!(gov.version(), (1u32, 0u32, 0u32));
+
+    env.as_contract(&gov.address, || {
+        crate::storage::GovernanceStorage::set_version(&env, (2, 1, 0));
+    });
+    assert_eq!(gov.version(), (2u32, 1u32, 0u32));
 }
 
 // ---------------------------------------------------------------------------
