@@ -81,6 +81,16 @@ jobs:
         run: |
           echo "=== WASM binary sizes ==="
           find target/wasm32-unknown-unknown/release -name "*.wasm" -exec ls -lh {} \;
+          # Size budget rationale: 
+          # Keeping WASM binaries under 100KB ensures fast deployment and execution 
+          # on the Stellar network, minimizing gas costs and execution timeouts.
+          for wasm_file in target/wasm32-unknown-unknown/release/*.wasm; do
+            size=$(stat -c%s "$wasm_file")
+            if [ "$size" -gt 102400 ]; then
+              echo "Error: $wasm_file exceeds the 100KB size limit ($size bytes)"
+              exit 1
+            fi
+          done
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
         with:
