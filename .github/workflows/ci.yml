@@ -82,7 +82,7 @@ jobs:
           echo "=== WASM binary sizes ==="
           find target/wasm32-unknown-unknown/release -name "*.wasm" -exec ls -lh {} \;
       - name: Upload WASM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wasm-binaries
           path: target/wasm32-unknown-unknown/release/*.wasm
