@@ -380,10 +380,13 @@ impl GovernanceContract {
             return Err(ContractError::AlreadyVoted);
         }
 
-        // Admin vote restriction
+        // Admin vote restriction: when enabled, prevent the admin from voting
+        // on proposals that *they created* but allow the admin to vote on
+        // proposals created by others. This avoids absolute admin lockout
+        // while still preventing self-voting on owned proposals.
         if GovernanceStorage::restrict_admin_vote(&env) {
             let admin = GovernanceStorage::admin(&env);
-            if voter == admin {
+            if voter == admin && proposal.proposer == admin {
                 return Err(ContractError::AdminVoteRestricted);
             }
         }

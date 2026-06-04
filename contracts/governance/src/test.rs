@@ -127,6 +127,88 @@ fn test_get_config() {
     assert_eq!(config.paused, false);
 }
 
+#[test]
+fn test_min_balance_blocks_underfunded_proposer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let poor = Address::generate(&env);
+
+    let token_id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &token_id);
+    token.initialize(&admin, &1_000_000_000i128);
+    token.mint(&admin, &poor, &10_000i128); // far below min
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    // min proposal balance set to 1_000_000
+    gov.initialize(&admin, &token_id, &1_000_000i128, &0u64, &0u32, &false);
+
+    let result = gov.try_create_proposal(
+        &poor,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, "desc"),
+        &1_000_000i128,
+        &3600u64,
+        &None,
+    );
+    assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
+}
+
+#[test]
+fn test_min_balance_allows_funded_proposer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let rich = Address::generate(&env);
+
+    let token_id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &token_id);
+    token.initialize(&admin, &1_000_000_000i128);
+    token.mint(&admin, &rich, &2_000_000i128); // above min
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    gov.initialize(&admin, &token_id, &1_000_000i128, &0u64, &0u32, &false);
+
+    let id = gov.create_proposal(
+        &rich,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, "desc"),
+        &1_000_000i128,
+        &3600u64,
+    );
+    assert_eq!(id, 0);
+}
+
+#[test]
+fn test_min_balance_zero_allows_anyone() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let poor = Address::generate(&env);
+
+    let token_id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &token_id);
+    token.initialize(&admin, &1_000_000_000i128);
+    token.mint(&admin, &poor, &10_000i128);
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    // min balance zero
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
+
+    // poor proposer should still be able to create
+    let id = gov.create_proposal(
+        &poor,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, "desc"),
+        &1_000_000i128,
+        &3600u64,
+    );
+    assert_eq!(id, 0);
+}
+
 fn make_proposal(gov: &GovernanceContractClient, env: &Env, proposer: &Address) -> u64 {
     gov.create_proposal(
         proposer,
@@ -790,6 +872,46 @@ fn test_transfer_admin_prevents_accidental_loss() {
 }
 
 #[test]
+fn test_old_admin_loses_privileges_after_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let old_admin = Address::generate(&env);
+    let new_admin = Address::generate(&env);
+    let voter = Address::generate(&env);
+
+    let token_id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &token_id);
+    token.initialize(&old_admin, &1_000_000_000i128);
+    token.mint(&old_admin, &voter, &10_000_000i128);
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    gov.initialize(&old_admin, &token_id, &0i128, &0u64, &0u32, &false);
+
+    // create a proposal to be cancelled
+    let proposal_id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, "desc"),
+        &1_000_000i128,
+        &3600u64,
+    );
+
+    // Transfer admin to new_admin
+    gov.propose_admin(&old_admin, &new_admin);
+    gov.accept_admin(&new_admin);
+
+    // Old admin should no longer be able to cancel
+    let result = gov.try_cancel(&old_admin, &proposal_id);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+
+    // New admin can cancel
+    gov.cancel(&new_admin, &proposal_id);
+    let proposal = gov.get_proposal(&proposal_id);
+    assert_eq!(proposal.state, ProposalState::Cancelled);
+}
+
+#[test]
 fn test_transfer_admin_zero_address_fails() {
     let env = Env::default();
     let (gov, _, admin, _, _) = setup(&env);
@@ -938,11 +1060,42 @@ fn test_update_quorum_exceeds_supply_fails() {
 }
 
 // ---------------------------------------------------------------------------
-// Admin vote restriction (issue #14)
+// Admin vote restriction tests
 // ---------------------------------------------------------------------------
 
 #[test]
-fn test_restrict_admin_vote_blocks_all_proposals() {
+fn test_restrict_admin_vote_blocks_admin_on_own_proposal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let voter = Address::generate(&env);
+
+    let token_id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &token_id);
+    token.initialize(&admin, &1_000_000_000i128);
+    token.mint(&admin, &voter, &10_000_000i128);
+    token.mint(&admin, &admin, &10_000_000i128);
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &true);
+
+    // Proposal created by admin
+    let id = gov.create_proposal(
+        &admin,
+        &String::from_str(&env, "Admin Proposal"),
+        &String::from_str(&env, "desc"),
+        &5_000_000i128,
+        &604_800u64,
+    );
+
+    // Admin should be blocked on their own proposals
+    let result = gov.try_cast_vote(&admin, &id, &Vote::Yes);
+    assert_eq!(result, Err(Ok(ContractError::AdminVoteRestricted)));
+}
+
+#[test]
+fn test_restrict_admin_vote_allows_admin_on_others_proposal() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
@@ -967,13 +1120,13 @@ fn test_restrict_admin_vote_blocks_all_proposals() {
         &604_800u64,
     );
 
-    // Admin should be blocked even on proposals they didn't create
-    let result = gov.try_cast_vote(&admin, &id, &Vote::Yes);
-    assert_eq!(result, Err(Ok(ContractError::AdminVoteRestricted)));
+    // Admin should be allowed to vote on others' proposals when restriction is "own-only"
+    gov.cast_vote(&admin, &id, &Vote::Yes);
+    assert!(gov.has_voted(&id, &admin));
 }
 
 #[test]
-fn test_restrict_admin_vote_false_allows_admin_to_vote() {
+fn test_restrict_admin_vote_false_allows_admin_everywhere() {
     let env = Env::default();
     env.mock_all_auths();
     let admin = Address::generate(&env);
@@ -989,7 +1142,17 @@ fn test_restrict_admin_vote_false_allows_admin_to_vote() {
     let gov = GovernanceContractClient::new(&env, &gov_id);
     gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
 
-    let id = gov.create_proposal(
+    // Admin-created proposal
+    let id_admin = gov.create_proposal(
+        &admin,
+        &String::from_str(&env, "Admin Proposal"),
+        &String::from_str(&env, "desc"),
+        &5_000_000i128,
+        &604_800u64,
+    );
+
+    // Voter-created proposal
+    let id_voter = gov.create_proposal(
         &voter,
         &String::from_str(&env, "Voter Proposal"),
         &String::from_str(&env, "desc"),
@@ -997,9 +1160,11 @@ fn test_restrict_admin_vote_false_allows_admin_to_vote() {
         &604_800u64,
     );
 
-    // Admin can vote when flag is false
-    gov.cast_vote(&admin, &id, &Vote::Yes);
-    assert!(gov.has_voted(&id, &admin));
+    // Admin can vote everywhere when flag is false
+    gov.cast_vote(&admin, &id_admin, &Vote::Yes);
+    gov.cast_vote(&admin, &id_voter, &Vote::Yes);
+    assert!(gov.has_voted(&id_admin, &admin));
+    assert!(gov.has_voted(&id_voter, &admin));
 }
 
 // ---------------------------------------------------------------------------
