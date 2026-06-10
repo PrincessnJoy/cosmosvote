@@ -135,7 +135,7 @@ jobs:
       - name: Generate coverage report
         run: cargo tarpaulin --out Xml --output-dir coverage/ --features testutils --exclude-files "*/test*" --fail-under 80
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: coverage/cobertura.xml
           fail_ci_if_error: false
