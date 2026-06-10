@@ -14,14 +14,14 @@
   "dependencies": {
     "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "12.3.0",
-    "react": "18.3.1",
+    "react": "19.2.7",
     "react-dom": "19.2.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.4.6",
     "@testing-library/react": "16.0.0",
     "@testing-library/user-event": "14.5.2",
-    "@types/react": "18.3.3",
+    "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@typescript-eslint/eslint-plugin": "8.60.1",
     "@typescript-eslint/parser": "7.13.0",
