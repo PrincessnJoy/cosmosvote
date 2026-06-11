@@ -141,6 +141,7 @@ impl GovernanceContract {
         description: String,
         quorum: i128,
         duration: u64,
+        link: Option<String>,
         treasury_action: Option<TreasuryAction>,
     ) -> Result<u64, ContractError> {
         proposer.require_auth();
@@ -229,7 +230,11 @@ impl GovernanceContract {
             end_time: now + duration,
             state: ProposalState::Active,
             snapshot_ledger,
-            treasury_action,
+            voter_count: 0,
+            treasury_action: match treasury_action {
+                Some(a) => Vec::from_array(&env, [a]),
+                None => Vec::new(&env),
+            },
         };
 
         GovernanceStorage::set_proposal(&env, id, &proposal);
@@ -596,7 +601,7 @@ impl GovernanceContract {
         }
 
         // Invoke treasury disbursement if a payload is attached
-        if let Some(action) = proposal.treasury_action.clone() {
+        if let Some(action) = proposal.treasury_action.get(0) {
             if let Some(treasury_addr) = GovernanceStorage::treasury_contract(&env) {
                 let treasury = TreasuryClient::new(&env, &treasury_addr);
                 treasury.disburse(&action);
@@ -627,7 +632,7 @@ impl GovernanceContract {
         if active_count > 0 {
             GovernanceStorage::set_active_proposal_count(&env, active_count - 1);
         }
-        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin);
+        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin, proposal.voter_count);
         Ok(())
     }
 
@@ -706,7 +711,6 @@ impl GovernanceContract {
         // GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF is the strkey
         // encoding of a 32-byte zeroed public key — no valid keypair can sign for it.
         let zero_addr = Address::from_string(
-            &env,
             &soroban_sdk::String::from_str(
                 &env,
                 "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",

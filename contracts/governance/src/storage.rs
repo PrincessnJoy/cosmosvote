@@ -217,19 +217,6 @@ impl GovernanceStorage {
     }
 
     // Proposal count persisted to persistent storage to avoid instance write contention
-    pub fn proposal_count(env: &Env) -> u64 {
-        let key = PersistentKey::ProposalCount;
-        let v = env.storage().persistent().get(&key).unwrap_or(0u64);
-        // bump TTL on read
-        Self::bump_persistent_ttl(env, &key);
-        v
-    }
-    pub fn set_proposal_count(env: &Env, v: u64) {
-        let key = PersistentKey::ProposalCount;
-        env.storage().persistent().set(&key, &v);
-        Self::bump_persistent_ttl(env, &key);
-    }
-
     /// Convenience: check if a proposal is in a terminal state.
     pub fn is_terminal(state: &ProposalState) -> bool {
         matches!(

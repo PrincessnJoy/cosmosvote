@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, String};
 
 use crate::{types::ContractError, TokenContract, TokenContractClient};
 
@@ -120,7 +120,7 @@ fn test_transfer_from_expired_allowance_fails() {
     let spender = Address::generate(&env);
     let expiry = env.ledger().sequence() + 1;
     token.approve(&admin, &spender, &1_000_000i128, &expiry);
-    env.ledger().with_mut(|l| l.sequence = expiry + 1);
+    env.ledger().with_mut(|l| l.sequence_number = expiry + 1);
     let result = token.try_transfer_from(&spender, &admin, &user, &1_000_000i128);
     assert_eq!(result, Err(Ok(ContractError::AllowanceExceeded)));
 }

@@ -145,4 +145,11 @@ impl GovernanceEvents {
             (old_token.clone(), new_token.clone()),
         );
     }
+
+    pub fn contract_upgraded(env: &Env, new_wasm_hash: &BytesN<32>) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("upgrade")),
+            new_wasm_hash.clone(),
+        );
+    }
 }
