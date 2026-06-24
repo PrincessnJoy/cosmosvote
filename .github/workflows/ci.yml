@@ -87,3 +87,19 @@ jobs:
         with:
           files: coverage/cobertura.xml
           fail_ci_if_error: false
+
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test --silent
