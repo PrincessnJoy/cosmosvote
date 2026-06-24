@@ -70,6 +70,29 @@ jobs:
           path: target/wasm32-unknown-unknown/release/*.wasm
           retention-days: 7
 
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan for secret patterns
+        run: |
+          # Check for private key headers
+          if grep -rE '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----' --include='*.rs' --include='*.toml' --include='*.yml' --include='*.yaml' --include='*.json' --include='*.env*' --include='*.sh' .; then
+            echo "ERROR: Private key material detected in source files." && exit 1
+          fi
+          # Check for Stellar secret keys (S + 55 base32 chars)
+          if grep -rE '\bS[A-Z2-7]{55}\b' --include='*.rs' --include='*.toml' --include='*.yml' --include='*.yaml' --include='*.json' --include='*.sh' .; then
+            echo "ERROR: Stellar secret key pattern detected in source files." && exit 1
+          fi
+          # Check for generic high-entropy tokens / API key assignments
+          if grep -rEi '(api_key|apikey|secret_key|auth_token|password)\s*=\s*["'"'"'][A-Za-z0-9/+_\-]{20,}["'"'"']' --include='*.rs' --include='*.toml' --include='*.yml' --include='*.yaml' --include='*.json' --include='*.sh' .; then
+            echo "ERROR: Possible hardcoded credential detected in source files." && exit 1
+          fi
+          echo "Secret scan passed."
+
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
