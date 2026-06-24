@@ -142,4 +142,140 @@ proptest! {
             prop_assert_eq!(final_proposal.state, ProposalState::Rejected);
         }
     }
+
+    /// A tied vote (yes == no) is always rejected.
+    #[test]
+    fn prop_tie_results_in_rejection(
+        tie_weight in 1_000_000i128..10_000_000i128,
+    ) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let voter_yes = Address::generate(&env);
+        let voter_no = Address::generate(&env);
+
+        let token_id = env.register(TokenContract, ());
+        let token = TokenContractClient::new(&env, &token_id);
+        token.initialize(&admin, &1_000_000_000i128);
+        token.mint(&admin, &voter_yes, &tie_weight);
+        token.mint(&admin, &voter_no, &tie_weight);
+
+        let gov_id = env.register(GovernanceContract, ());
+        let gov = GovernanceContractClient::new(&env, &gov_id);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+
+        let quorum = tie_weight; // total will be 2*tie_weight >= quorum
+        let id = gov.create_proposal(
+            &voter_yes,
+            &String::from_str(&env, "Tie Test"),
+            &String::from_str(&env, "Should be rejected on tie"),
+            &quorum,
+            &3600u64,
+        );
+
+        gov.cast_vote(&voter_yes, &id, &Vote::Yes);
+        gov.cast_vote(&voter_no, &id, &Vote::No);
+
+        let proposal = gov.get_proposal(&id);
+        env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+        gov.finalise(&id);
+
+        prop_assert_eq!(gov.get_proposal(&id).state, ProposalState::Rejected);
+    }
+
+    /// Abstain votes count toward quorum: yes+no+abstain >= quorum with yes > no passes.
+    #[test]
+    fn prop_abstain_counts_toward_quorum(
+        yes_weight in 4_000_000i128..8_000_000i128,
+        no_weight in 1_000_000i128..3_000_000i128,
+        abstain_weight in 1_000_000i128..5_000_000i128,
+    ) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let voter_yes = Address::generate(&env);
+        let voter_no = Address::generate(&env);
+        let voter_abs = Address::generate(&env);
+
+        let token_id = env.register(TokenContract, ());
+        let token = TokenContractClient::new(&env, &token_id);
+        token.initialize(&admin, &1_000_000_000i128);
+        token.mint(&admin, &voter_yes, &yes_weight);
+        token.mint(&admin, &voter_no, &no_weight);
+        token.mint(&admin, &voter_abs, &abstain_weight);
+
+        let gov_id = env.register(GovernanceContract, ());
+        let gov = GovernanceContractClient::new(&env, &gov_id);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+
+        // Set quorum so abstain is needed to push total over quorum
+        let total = yes_weight + no_weight + abstain_weight;
+        let quorum = yes_weight + no_weight + 1; // requires abstain to meet quorum
+        prop_assume!(total >= quorum);
+
+        let id = gov.create_proposal(
+            &voter_yes,
+            &String::from_str(&env, "Abstain Quorum Test"),
+            &String::from_str(&env, "Abstain pushes over quorum"),
+            &quorum,
+            &3600u64,
+        );
+
+        gov.cast_vote(&voter_yes, &id, &Vote::Yes);
+        gov.cast_vote(&voter_no, &id, &Vote::No);
+        gov.cast_vote(&voter_abs, &id, &Vote::Abstain);
+
+        let proposal = gov.get_proposal(&id);
+        env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+        gov.finalise(&id);
+
+        // yes > no and total >= quorum => Passed
+        prop_assert_eq!(gov.get_proposal(&id).state, ProposalState::Passed);
+    }
+
+    /// When total votes < quorum, proposal is always rejected regardless of yes/no split.
+    #[test]
+    fn prop_quorum_not_met_always_rejected(
+        yes_weight in 1_000_000i128..10_000_000i128,
+        no_weight in 1_000_000i128..10_000_000i128,
+    ) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let voter_yes = Address::generate(&env);
+        let voter_no = Address::generate(&env);
+
+        let token_id = env.register(TokenContract, ());
+        let token = TokenContractClient::new(&env, &token_id);
+        token.initialize(&admin, &1_000_000_000i128);
+        token.mint(&admin, &voter_yes, &yes_weight);
+        token.mint(&admin, &voter_no, &no_weight);
+
+        let gov_id = env.register(GovernanceContract, ());
+        let gov = GovernanceContractClient::new(&env, &gov_id);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &false);
+
+        let total = yes_weight + no_weight;
+        let quorum = total + 1; // always one more than total votes cast
+
+        let id = gov.create_proposal(
+            &voter_yes,
+            &String::from_str(&env, "Quorum Miss Test"),
+            &String::from_str(&env, "Quorum not met"),
+            &quorum,
+            &3600u64,
+        );
+
+        gov.cast_vote(&voter_yes, &id, &Vote::Yes);
+        gov.cast_vote(&voter_no, &id, &Vote::No);
+
+        let proposal = gov.get_proposal(&id);
+        env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+        gov.finalise(&id);
+
+        prop_assert_eq!(gov.get_proposal(&id).state, ProposalState::Rejected);
+    }
 }
