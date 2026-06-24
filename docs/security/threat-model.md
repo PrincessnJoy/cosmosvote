@@ -27,6 +27,16 @@
 **Mitigations:** Admin must deploy a trustworthy token; token address is immutable after init.  
 **Residual Risk:** High (external dependency — accepted)
 
+### T6 — Wallet Compromise
+**Goal:** Attacker steals private key or mnemonic to hijack admin or voter address.  
+**Mitigations:** Use hardware wallets for admin key storage; consider multisig admin for critical operations; rotate keys promptly on suspected compromise; `restrict_admin_vote` flag limits damage from a compromised admin address.  
+**Residual Risk:** High (off-chain threat — use hardware wallet + multisig)
+
+### T7 — RPC Spoofing / Man-in-the-Middle
+**Goal:** Malicious RPC endpoint returns falsified ledger state to mislead clients into believing proposals passed/failed or votes were recorded incorrectly.  
+**Mitigations:** Verify transactions via multiple independent RPC endpoints; check on-chain events against known contract IDs; use HTTPS with certificate pinning; clients should verify Stellar Horizon responses with XDR validation.  
+**Residual Risk:** Medium (client-side threat — use trusted RPC providers)
+
 ## Security Properties
 
 | Property | Implementation |
@@ -37,3 +47,5 @@
 | Arithmetic safety | `checked_add` on all vote accumulation |
 | Finalization correctness | Pass condition evaluated atomically |
 | Emergency response | Admin pause blocks all state-changing ops |
+| Wallet security | Hardware wallets + multisig recommended for admin; `restrict_admin_vote` limits key-compromise blast radius |
+| RPC integrity | Multi-endpoint verification + XDR validation guards against spoofed ledger responses |
