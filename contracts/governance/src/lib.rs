@@ -18,6 +18,8 @@ mod test_helpers;
 mod prop_tests;
 #[cfg(test)]
 mod benchmarks;
+#[cfg(test)]
+mod fuzz_tests;
 
 use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
