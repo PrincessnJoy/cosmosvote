@@ -395,3 +395,148 @@ fn test_get_delegated_weight_ignores_wrong_delegator() {
     let weight = token.get_delegated_weight(&user, &delegators);
     assert_eq!(weight, 5_000_000); // only own balance
 }
+
+// ---------------------------------------------------------------------------
+// Edge cases: transfer_from with insufficient allowance (#346)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_transfer_from_zero_allowance_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let spender = Address::generate(&env);
+    // No approval given — allowance is zero/non-existent
+    let result = token.try_transfer_from(&spender, &admin, &user, &1i128);
+    assert_eq!(result, Err(Ok(ContractError::AllowanceExceeded)));
+}
+
+#[test]
+fn test_transfer_from_exact_allowance_consumed() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let spender = Address::generate(&env);
+    let expiry = env.ledger().sequence() + 100;
+    token.approve(&admin, &spender, &500i128, &expiry);
+    // Use exactly the full allowance
+    token.transfer_from(&spender, &admin, &user, &500i128);
+    assert_eq!(token.balance(&user), 500);
+    assert_eq!(token.allowance(&admin, &spender), 0);
+}
+
+#[test]
+fn test_transfer_from_reduces_allowance_not_balance() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let spender = Address::generate(&env);
+    let expiry = env.ledger().sequence() + 100;
+    token.approve(&admin, &spender, &1_000i128, &expiry);
+    token.transfer_from(&spender, &admin, &user, &300i128);
+    assert_eq!(token.allowance(&admin, &spender), 700);
+    assert_eq!(token.balance(&admin), 1_000_000_000 - 300);
+}
+
+#[test]
+fn test_transfer_from_insufficient_sender_balance_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let spender = Address::generate(&env);
+    let expiry = env.ledger().sequence() + 100;
+    // Approve more than admin actually has
+    token.approve(&admin, &spender, &2_000_000_000i128, &expiry);
+    // Burn admin balance first
+    token.burn(&admin, &admin, &1_000_000_000i128);
+    let result = token.try_transfer_from(&spender, &admin, &user, &1i128);
+    assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
+}
+
+// ---------------------------------------------------------------------------
+// Edge cases: self-transfer (#346)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_transfer_to_self_preserves_total_supply() {
+    let env = Env::default();
+    let (token, admin, _) = setup(&env);
+    let supply_before = token.total_supply();
+    token.transfer(&admin, &admin, &500_000i128);
+    assert_eq!(token.total_supply(), supply_before);
+    assert_eq!(token.balance(&admin), supply_before);
+}
+
+#[test]
+fn test_transfer_negative_amount_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let result = token.try_transfer(&admin, &user, &-1i128);
+    assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
+}
+
+// ---------------------------------------------------------------------------
+// Edge cases: burn (#346)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_burn_all_tokens_supply_zero() {
+    let env = Env::default();
+    let (token, admin, _) = setup(&env);
+    let supply = token.total_supply();
+    token.burn(&admin, &admin, &supply);
+    assert_eq!(token.total_supply(), 0);
+    assert_eq!(token.balance(&admin), 0);
+}
+
+#[test]
+fn test_burn_self_all_tokens_supply_decreases() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    token.transfer(&admin, &user, &1_000_000i128);
+    let supply_before = token.total_supply();
+    token.burn_self(&user, &1_000_000i128);
+    assert_eq!(token.total_supply(), supply_before - 1_000_000);
+    assert_eq!(token.balance(&user), 0);
+}
+
+#[test]
+fn test_burn_zero_fails() {
+    let env = Env::default();
+    let (token, admin, _) = setup(&env);
+    let result = token.try_burn(&admin, &admin, &0i128);
+    assert_eq!(result, Err(Ok(ContractError::InvalidAmount)));
+}
+
+// ---------------------------------------------------------------------------
+// Non-negative supply invariant (#346)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_total_supply_never_exceeds_minted() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let initial_supply = token.total_supply();
+    token.mint(&admin, &user, &1_000i128);
+    assert_eq!(token.total_supply(), initial_supply + 1_000);
+    token.burn(&admin, &user, &1_000i128);
+    assert_eq!(token.total_supply(), initial_supply);
+}
+
+#[test]
+fn test_supply_invariant_after_transfers() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let supply = token.total_supply();
+    // Transfers must not change total supply
+    token.transfer(&admin, &user, &500_000i128);
+    assert_eq!(token.total_supply(), supply);
+    token.transfer(&user, &admin, &200_000i128);
+    assert_eq!(token.total_supply(), supply);
+}
+
+#[test]
+fn test_mint_overflow_protection() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    // i128::MAX should trigger ArithmeticOverflow in mint
+    let result = token.try_mint(&admin, &user, &i128::MAX);
+    // Must fail — either overflow or another validation error; must not panic
+    assert!(result.is_err());
+}
