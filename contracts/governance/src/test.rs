@@ -1593,3 +1593,123 @@ fn test_active_proposal_limit() {
     );
     assert_eq!(result, Err(Ok(ContractError::ProposalsStillActive)));
 }
+
+// ---------------------------------------------------------------------------
+// Issue #295: Proposal metadata URL / IPFS reference edge cases
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_create_proposal_with_ipfs_link() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "IPFS Proposal"),
+        &String::from_str(&env, "Content stored on IPFS"),
+        &5_000_000i128,
+        &604_800u64,
+        &Some(String::from_str(&env, "ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG")),
+        &None,
+    );
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(
+        proposal.link,
+        Some(String::from_str(&env, "ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG"))
+    );
+}
+
+#[test]
+fn test_create_proposal_with_https_link() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "HTTPS Proposal"),
+        &String::from_str(&env, "Content at https URL"),
+        &5_000_000i128,
+        &604_800u64,
+        &Some(String::from_str(&env, "https://docs.example.com/proposals/42")),
+        &None,
+    );
+    let proposal = gov.get_proposal(&id);
+    assert!(proposal.link.is_some());
+}
+
+#[test]
+fn test_create_proposal_link_max_length_succeeds() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    // Exactly 256 chars — should succeed
+    let link_256 = String::from_str(&env, "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Max Link"),
+        &String::from_str(&env, "desc"),
+        &5_000_000i128,
+        &604_800u64,
+        &Some(link_256),
+        &None,
+    );
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_create_proposal_link_empty_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, "desc"),
+        &5_000_000i128,
+        &604_800u64,
+        &Some(String::from_str(&env, "")),
+        &None,
+    );
+    assert_eq!(result, Err(Ok(ContractError::InvalidLink)));
+}
+
+#[test]
+fn test_proposal_link_stored_and_retrieved() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let link = "https://forum.example.com/proposal/99";
+    let id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "Stored Link"),
+        &String::from_str(&env, "desc"),
+        &5_000_000i128,
+        &604_800u64,
+        &Some(String::from_str(&env, link)),
+        &None,
+    );
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.link, Some(String::from_str(&env, link)));
+}
+
+#[test]
+fn test_proposal_link_none_stored_as_none() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    let proposal = gov.get_proposal(&id);
+    assert_eq!(proposal.link, None);
+}
+
+#[test]
+fn test_proposals_with_and_without_link_coexist() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let id_no_link = make_proposal(&gov, &env, &voter);
+    let id_with_link = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "With Link"),
+        &String::from_str(&env, "desc"),
+        &5_000_000i128,
+        &604_800u64,
+        &Some(String::from_str(&env, "https://example.com")),
+        &None,
+    );
+    assert_eq!(gov.get_proposal(&id_no_link).link, None);
+    assert!(gov.get_proposal(&id_with_link).link.is_some());
+}
