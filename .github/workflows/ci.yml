@@ -81,7 +81,19 @@ jobs:
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin --locked
       - name: Generate coverage report
-        run: cargo tarpaulin --out Xml --output-dir coverage/ --features testutils --exclude-files "*/test*"
+        run: |
+          cargo tarpaulin \
+            --out Xml Html \
+            --output-dir coverage/ \
+            --features testutils \
+            --exclude-files "*/test*" \
+            --fail-under 60
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:

@@ -51,9 +51,13 @@ doc:
 clean:
 	cargo clean
 
-## Run coverage (requires cargo-tarpaulin)
+## Run coverage and generate HTML + XML reports (requires cargo-tarpaulin)
 coverage:
-	cargo tarpaulin --out Html --output-dir coverage/ --features testutils
+	cargo tarpaulin --out Html Xml --output-dir coverage/ --features testutils --exclude-files "*/test*"
+
+## Run coverage and fail if below 60% threshold
+coverage-check:
+	cargo tarpaulin --out Xml --output-dir coverage/ --features testutils --exclude-files "*/test*" --fail-under 60
 
 ## Build with debug logs enabled
 build-debug:
