@@ -504,6 +504,51 @@ impl GovernanceContract {
         Ok(())
     }
 
+    /// Update the minimum token balance required to create proposals. Admin only.
+    pub fn set_min_proposal_balance(
+        env: Env,
+        admin: Address,
+        new_value: i128,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        if new_value < 0 {
+            return Err(ContractError::InsufficientBalance);
+        }
+        let old_value = GovernanceStorage::min_proposal_balance(&env);
+        GovernanceStorage::set_min_proposal_balance(&env, new_value);
+        GovernanceEvents::min_balance_updated(&env, &admin, old_value, new_value);
+        Ok(())
+    }
+
+    /// Update the per-proposer cooldown in seconds. Admin only.
+    pub fn set_proposal_cooldown(
+        env: Env,
+        admin: Address,
+        new_value: u64,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        let old_value = GovernanceStorage::proposal_cooldown(&env);
+        GovernanceStorage::set_proposal_cooldown(&env, new_value);
+        GovernanceEvents::cooldown_updated(&env, &admin, old_value, new_value);
+        Ok(())
+    }
+
+    /// Update the admin vote restriction flag. Admin only.
+    pub fn set_restrict_admin_vote(
+        env: Env,
+        admin: Address,
+        new_value: bool,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        let old_value = GovernanceStorage::restrict_admin_vote(&env);
+        GovernanceStorage::set_restrict_admin_vote(&env, new_value);
+        GovernanceEvents::restrict_admin_vote_updated(&env, &admin, old_value, new_value);
+        Ok(())
+    }
+
     /// Return the current admin address.
     pub fn admin(env: Env) -> Address {
         GovernanceStorage::admin(&env)

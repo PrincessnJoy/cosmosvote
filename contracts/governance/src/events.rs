@@ -97,4 +97,25 @@ impl GovernanceEvents {
             admin.clone(),
         );
     }
+
+    pub fn min_balance_updated(env: &Env, admin: &Address, old_value: i128, new_value: i128) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("minbal")),
+            (admin.clone(), old_value, new_value),
+        );
+    }
+
+    pub fn cooldown_updated(env: &Env, admin: &Address, old_value: u64, new_value: u64) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("cooldown")),
+            (admin.clone(), old_value, new_value),
+        );
+    }
+
+    pub fn restrict_admin_vote_updated(env: &Env, admin: &Address, old_value: bool, new_value: bool) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("rstadmv")),
+            (admin.clone(), old_value, new_value),
+        );
+    }
 }
