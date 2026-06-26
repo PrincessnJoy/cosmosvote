@@ -63,6 +63,27 @@ jobs:
         run: |
           echo "=== WASM binary sizes ==="
           find target/wasm32-unknown-unknown/release -name "*.wasm" -exec ls -lh {} \;
+      - name: Enforce WASM size budget
+        run: |
+          # Budget: 100 KB per contract (102400 bytes).
+          # Soroban imposes a hard upload limit; staying well below it leaves
+          # room for future features and keeps transaction fees predictable.
+          BUDGET=102400
+          FAILED=0
+          for wasm in target/wasm32-unknown-unknown/release/cosmosvote_*.wasm; do
+            SIZE=$(stat -c%s "$wasm")
+            NAME=$(basename "$wasm")
+            if [ "$SIZE" -gt "$BUDGET" ]; then
+              echo "FAIL  $NAME: ${SIZE} bytes exceeds budget of ${BUDGET} bytes"
+              FAILED=1
+            else
+              echo "OK    $NAME: ${SIZE} bytes (budget ${BUDGET} bytes)"
+            fi
+          done
+          if [ "$FAILED" -ne 0 ]; then
+            echo "One or more WASM binaries exceed the size budget. Optimise with wasm-opt or reduce dependencies."
+            exit 1
+          fi
       - name: Upload WASM artifacts
         uses: actions/upload-artifact@v4
         with:
