@@ -21,6 +21,8 @@ mod prop_tests;
 mod benchmarks;
 #[cfg(test)]
 mod event_tests;
+#[cfg(test)]
+mod quorum_tests;
 
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
