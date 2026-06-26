@@ -133,54 +133,29 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
             <tbody>
               {[
                 ['State', p.state],
-                ['Proposer', `${p.proposer.slice(0, 8)}...${p.proposer.slice(-4)}`],
+                ['Proposer', (
+                  <a
+                    href={explorerAccountUrl(p.proposer)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={p.proposer}
+                    style={{ color: '#2563eb', textDecoration: 'none' }}
+                  >
+                    {shortAddress}
+                  </a>
+                )],
                 ['Start', formatDate(p.start_time)],
                 ['End', formatDate(p.end_time)],
                 ['Quorum', formatTokenAmount(p.quorum, decimals)],
                 ['Total Votes', formatTokenAmount(total, decimals)],
               ].map(([k, v]) => (
-                <tr key={k} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <tr key={String(k)} style={{ borderBottom: '1px solid #e5e7eb' }}>
                   <td style={{ padding: '0.4rem 0', color: '#888', width: '40%' }}>{k}</td>
                   <td style={{ padding: '0.4rem 0', fontWeight: 500 }}>{v}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
-            {[
-              ['State', p.state],
-              ['Proposer', (
-                <a
-                  href={explorerAccountUrl(p.proposer)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={p.proposer}
-                  style={{ color: '#2563eb', textDecoration: 'none' }}
-                >
-                  {shortAddress}
-                </a>
-              )],
-              ['Start', formatDate(p.start_time)],
-              ['End', formatDate(p.end_time)],
-              ['Quorum', formatTokenAmount(p.quorum, decimals)],
-              ['Total Votes', formatTokenAmount(total, decimals)],
-            ].map(([k, v]) => (
-              <tr key={String(k)} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '0.4rem 0', color: '#888', width: '40%' }}>{k}</td>
-                <td style={{ padding: '0.4rem 0', fontWeight: 500 }}>{v}</td>
-              </tr>
-            ))}
-          </div>
-
-          {walletAddress && (
-            <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem' }}>
-              {hasVoted === null ? 'Checking vote status...' :
-                hasVoted && voteRecord
-                  ? `You voted ${voteRecord.vote} with weight ${formatTokenAmount(voteRecord.weight, decimals)}`
-                  : 'You have not voted on this proposal'}
-            </div>
-          )}
 
         {walletAddress && (
           <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem' }}>

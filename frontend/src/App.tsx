@@ -206,7 +206,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={(e) => {
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={(e) => {
               triggerRef.current = e?.currentTarget as HTMLElement ?? null;
               setSelected(p);
             }} />
