@@ -9,6 +9,9 @@ pub enum InstanceKey {
     TotalSupply,
     Initialized,
     Version,
+    Name,
+    Symbol,
+    Decimals,
 }
 
 #[soroban_sdk::contracttype]
@@ -52,6 +55,27 @@ impl TokenStorage {
     }
     pub fn set_version(env: &Env, v: (u32, u32, u32)) {
         env.storage().instance().set(&InstanceKey::Version, &v);
+    }
+
+    pub fn name(env: &Env) -> soroban_sdk::String {
+        env.storage().instance().get(&InstanceKey::Name).unwrap()
+    }
+    pub fn set_name(env: &Env, v: &soroban_sdk::String) {
+        env.storage().instance().set(&InstanceKey::Name, v);
+    }
+
+    pub fn symbol(env: &Env) -> soroban_sdk::String {
+        env.storage().instance().get(&InstanceKey::Symbol).unwrap()
+    }
+    pub fn set_symbol(env: &Env, v: &soroban_sdk::String) {
+        env.storage().instance().set(&InstanceKey::Symbol, v);
+    }
+
+    pub fn decimals(env: &Env) -> u32 {
+        env.storage().instance().get(&InstanceKey::Decimals).unwrap_or(7)
+    }
+    pub fn set_decimals(env: &Env, v: u32) {
+        env.storage().instance().set(&InstanceKey::Decimals, &v);
     }
 
     pub fn balance(env: &Env, owner: &Address) -> i128 {

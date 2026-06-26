@@ -2,7 +2,7 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
 use crate::{types::ContractError, TokenContract, TokenContractClient};
 
@@ -12,7 +12,13 @@ fn setup(env: &Env) -> (TokenContractClient, Address, Address) {
     let user = Address::generate(env);
     let id = env.register(TokenContract, ());
     let token = TokenContractClient::new(env, &id);
-    token.initialize(&admin, &1_000_000_000i128);
+    token.initialize(
+        &admin,
+        &1_000_000_000i128,
+        &String::from_str(env, "CosmosVote Token"),
+        &String::from_str(env, "CVT"),
+        &7u32,
+    );
     (token, admin, user)
 }
 
@@ -166,4 +172,48 @@ fn test_version() {
     let env = Env::default();
     let (token, _, _) = setup(&env);
     assert_eq!(token.version(), (1u32, 0u32, 0u32));
+}
+
+// ---------------------------------------------------------------------------
+// Metadata
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_metadata_name() {
+    let env = Env::default();
+    let (token, _, _) = setup(&env);
+    assert_eq!(token.name(), String::from_str(&env, "CosmosVote Token"));
+}
+
+#[test]
+fn test_metadata_symbol() {
+    let env = Env::default();
+    let (token, _, _) = setup(&env);
+    assert_eq!(token.symbol(), String::from_str(&env, "CVT"));
+}
+
+#[test]
+fn test_metadata_decimals() {
+    let env = Env::default();
+    let (token, _, _) = setup(&env);
+    assert_eq!(token.decimals(), 7u32);
+}
+
+#[test]
+fn test_metadata_custom_values() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &id);
+    token.initialize(
+        &admin,
+        &500_000i128,
+        &String::from_str(&env, "My Token"),
+        &String::from_str(&env, "MTK"),
+        &18u32,
+    );
+    assert_eq!(token.name(), String::from_str(&env, "My Token"));
+    assert_eq!(token.symbol(), String::from_str(&env, "MTK"));
+    assert_eq!(token.decimals(), 18u32);
 }
