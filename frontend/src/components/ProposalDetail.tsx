@@ -1,6 +1,7 @@
 import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useState } from 'react';
+import { t } from '../i18n';
 
 interface Props {
   proposal: Proposal;
@@ -36,8 +37,8 @@ export function ProposalDetail({ proposal: p, walletAddress, onClose }: Props) {
         onClick={e => e.stopPropagation()}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <h2 style={{ margin: 0 }}>Proposal #{String(p.id)}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+          <h2 style={{ margin: 0 }}>{t.detail_heading}{String(p.id)}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }} aria-label={t.detail_close_aria}>×</button>
         </div>
 
         <h3 style={{ margin: '0 0 0.5rem' }}>{p.title}</h3>
@@ -46,12 +47,12 @@ export function ProposalDetail({ proposal: p, walletAddress, onClose }: Props) {
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '1rem' }}>
           <tbody>
             {[
-              ['State', p.state],
-              ['Proposer', `${p.proposer.slice(0, 8)}...${p.proposer.slice(-4)}`],
-              ['Start', formatDate(p.start_time)],
-              ['End', formatDate(p.end_time)],
-              ['Quorum', String(p.quorum)],
-              ['Total Votes', String(total)],
+              [t.detail_state, p.state],
+              [t.detail_proposer, `${p.proposer.slice(0, 8)}...${p.proposer.slice(-4)}`],
+              [t.detail_start, formatDate(p.start_time)],
+              [t.detail_end, formatDate(p.end_time)],
+              [t.detail_quorum, String(p.quorum)],
+              [t.detail_total_votes, String(total)],
             ].map(([k, v]) => (
               <tr key={k} style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={{ padding: '0.4rem 0', color: '#888', width: '40%' }}>{k}</td>
@@ -63,9 +64,9 @@ export function ProposalDetail({ proposal: p, walletAddress, onClose }: Props) {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
           {[
-            { label: '✅ Yes', value: p.votes_yes, color: '#16a34a' },
-            { label: '❌ No', value: p.votes_no, color: '#dc2626' },
-            { label: '⬜ Abstain', value: p.votes_abstain, color: '#6b7280' },
+            { label: t.vote_yes_label, value: p.votes_yes, color: '#16a34a' },
+            { label: t.vote_no_label, value: p.votes_no, color: '#dc2626' },
+            { label: t.vote_abstain_label, value: p.votes_abstain, color: '#6b7280' },
           ].map(({ label, value, color }) => (
             <div key={label} style={{ textAlign: 'center', padding: '0.75rem', background: '#f9fafb', borderRadius: 8 }}>
               <div style={{ fontSize: '0.75rem', color: '#888' }}>{label}</div>
@@ -76,10 +77,10 @@ export function ProposalDetail({ proposal: p, walletAddress, onClose }: Props) {
 
         {walletAddress && (
           <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem' }}>
-            {hasVoted === null ? 'Checking vote status...' :
+            {hasVoted === null ? t.vote_status_checking :
               hasVoted && voteRecord
-                ? `You voted ${voteRecord.vote} with weight ${String(voteRecord.weight)}`
-                : 'You have not voted on this proposal'}
+                ? `${t.vote_status_cast} ${voteRecord.vote} ${t.vote_status_cast_weight} ${String(voteRecord.weight)}`
+                : t.vote_status_not_cast}
           </div>
         )}
       </div>

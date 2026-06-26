@@ -1,4 +1,5 @@
 import type { Proposal, ProposalState } from '../types';
+import { t } from '../i18n';
 
 const STATE_COLORS: Record<ProposalState, string> = {
   Active: '#2563eb',
@@ -56,7 +57,7 @@ export function ProposalCard({ proposal: p, onClick }: Props) {
       </p>
 
       <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '0.5rem' }}>
-        Ends {formatDate(p.end_time)} · Quorum {String(p.quorum).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+        {t.card_ends} {formatDate(p.end_time)} · {t.card_quorum} {String(p.quorum).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
       </div>
 
       {/* Quorum progress bar */}
@@ -64,7 +65,7 @@ export function ProposalCard({ proposal: p, onClick }: Props) {
         <div style={{ background: color, width: `${pct}%`, height: '100%', borderRadius: 4, transition: 'width 0.3s' }} />
       </div>
       <div style={{ fontSize: '0.7rem', color: '#888', marginTop: 2 }}>
-        {pct}% of quorum · ✅ {String(p.votes_yes)} · ❌ {String(p.votes_no)} · ⬜ {String(p.votes_abstain)}
+        {pct}{t.card_quorum_progress} · {t.vote_yes} {String(p.votes_yes)} · {t.vote_no} {String(p.votes_no)} · {t.vote_abstain} {String(p.votes_abstain)}
       </div>
     </article>
   );
