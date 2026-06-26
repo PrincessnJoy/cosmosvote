@@ -1445,3 +1445,71 @@ fn test_active_proposal_limit() {
     );
     assert_eq!(result, Err(Ok(ContractError::ProposalsStillActive)));
 }
+
+// ---------------------------------------------------------------------------
+// Issue #309: Proposal description size limit validation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_create_proposal_description_at_max_length_succeeds() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    // 1024-char description — exactly at the limit, must succeed
+    let desc = String::from_str(&env, &"x".repeat(1024));
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Title"),
+        &desc,
+        &1_000_000i128,
+        &3600u64,
+        &None,
+    );
+    assert!(result.is_ok());
+}
+
+#[test]
+fn test_create_proposal_description_over_max_length_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    // 1025-char description — one over the limit, must fail
+    let desc = String::from_str(&env, &"x".repeat(1025));
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Title"),
+        &desc,
+        &1_000_000i128,
+        &3600u64,
+        &None,
+    );
+    assert_eq!(result, Err(Ok(ContractError::InvalidDescription)));
+}
+
+#[test]
+fn test_create_proposal_empty_description_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, ""),
+        &1_000_000i128,
+        &3600u64,
+        &None,
+    );
+    assert_eq!(result, Err(Ok(ContractError::InvalidDescription)));
+}
+
+#[test]
+fn test_create_proposal_description_one_char_succeeds() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let result = gov.try_create_proposal(
+        &voter,
+        &String::from_str(&env, "Title"),
+        &String::from_str(&env, "x"),
+        &1_000_000i128,
+        &3600u64,
+        &None,
+    );
+    assert!(result.is_ok());
+}
