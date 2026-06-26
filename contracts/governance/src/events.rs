@@ -1,6 +1,6 @@
 //! Governance contract — on-chain event emission.
 
-use soroban_sdk::{symbol_short, Address, Env, String};
+use soroban_sdk::{symbol_short, Address, BytesN, Env, String};
 
 use crate::types::{ProposalState, Vote};
 
@@ -35,6 +35,11 @@ impl GovernanceEvents {
         );
     }
 
+    /// Emitted exactly once per proposal when `finalise()` transitions it from
+    /// `Active` to `Passed` or `Rejected`. Off-chain indexers should deduplicate
+    /// on `(proposal_id, "final")` — the idempotency guard in `finalise()`
+    /// prevents a second emission, but indexers processing historical ledgers
+    /// should still treat duplicate events as no-ops.
     pub fn proposal_finalized(env: &Env, proposal_id: u64, state: &ProposalState) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("final")),
@@ -49,17 +54,31 @@ impl GovernanceEvents {
         );
     }
 
-    pub fn proposal_cancelled(env: &Env, proposal_id: u64, admin: &Address) {
+    pub fn proposal_cancelled(env: &Env, proposal_id: u64, admin: &Address, voter_count: u32) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("cancel")),
-            (proposal_id, admin.clone()),
+            (proposal_id, admin.clone(), voter_count),
         );
     }
 
-    pub fn quorum_updated(env: &Env, proposal_id: u64, new_quorum: i128) {
+    pub fn quorum_updated(env: &Env, proposal_id: u64, old_quorum: i128, new_quorum: i128) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("quorum")),
-            (proposal_id, new_quorum),
+            (proposal_id, old_quorum, new_quorum),
+        );
+    }
+
+    pub fn vote_retracted(env: &Env, proposal_id: u64, voter: &Address, weight: i128) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("retract")),
+            (proposal_id, voter.clone(), weight),
+        );
+    }
+
+    pub fn vote_changed(env: &Env, proposal_id: u64, voter: &Address, old_vote: &Vote, new_vote: &Vote, weight: i128) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("chgvote")),
+            (proposal_id, voter.clone(), old_vote.clone(), new_vote.clone(), weight),
         );
     }
 
@@ -67,6 +86,42 @@ impl GovernanceEvents {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("admin")),
             (old_admin.clone(), new_admin.clone()),
+        );
+    }
+
+    pub fn admin_transfer_proposed(env: &Env, current_admin: &Address, pending_admin: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("propose")),
+            (current_admin.clone(), pending_admin.clone()),
+        );
+    }
+
+    pub fn admin_transfer_accepted(env: &Env, previous_admin: &Address, new_admin: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("accept")),
+            (previous_admin.clone(), new_admin.clone()),
+        );
+    }
+
+    pub fn proposal_amended(
+        env: &Env,
+        proposal_id: u64,
+        proposer: &Address,
+        old_title: &String,
+        new_title: &String,
+        old_description: &String,
+        new_description: &String,
+    ) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("amended")),
+            (
+                proposal_id,
+                proposer.clone(),
+                old_title.clone(),
+                new_title.clone(),
+                old_description.clone(),
+                new_description.clone(),
+            ),
         );
     }
 
@@ -81,6 +136,20 @@ impl GovernanceEvents {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("unpause")),
             admin.clone(),
+        );
+    }
+
+    pub fn voting_token_updated(env: &Env, old_token: &Address, new_token: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("token")),
+            (old_token.clone(), new_token.clone()),
+        );
+    }
+
+    pub fn contract_upgraded(env: &Env, new_wasm_hash: &BytesN<32>) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("upgrade")),
+            new_wasm_hash.clone(),
         );
     }
 }
