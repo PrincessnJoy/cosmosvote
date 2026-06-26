@@ -1,24 +1,26 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
+import type { Proposal, ProposalState, VoteRecord } from './types';
+import { fetchAllProposals, fetchTokenDecimals, fetchVoteRecord } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
+import { UserDashboard } from './components/UserDashboard';
+import { useWallet } from './WalletContext';
 import { ACTIVE_NETWORK } from './config';
-import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
 export default function App() {
+  const { walletAddress, tokenBalance, connect, disconnect } = useWallet();
+
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
+  const [votedMap, setVotedMap] = useState<Map<bigint, VoteRecord>>(new Map());
 
   useEffect(() => {
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
@@ -29,6 +31,25 @@ export default function App() {
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, []);
+
+  // Load vote records for the connected wallet
+  useEffect(() => {
+    if (!walletAddress || proposals.length === 0) {
+      setVotedMap(new Map());
+      return;
+    }
+    Promise.all(
+      proposals.map(p =>
+        fetchVoteRecord(Number(p.id), walletAddress).then(r => [p.id, r] as const)
+      )
+    ).then(entries => {
+      const map = new Map<bigint, VoteRecord>();
+      entries.forEach(([id, record]) => {
+        if (record) map.set(id, record);
+      });
+      setVotedMap(map);
+    });
+  }, [walletAddress, proposals]);
 
   const filtered = useMemo(() => {
     return proposals.filter(p => {
@@ -47,26 +68,30 @@ export default function App() {
           <h1 style={{ margin: 0, fontSize: '1.5rem' }}>🌌 CosmosVote</h1>
           <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>On-chain governance · {ACTIVE_NETWORK}</span>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          {walletAddress ? (
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
-              {tokenBalance !== null && (
-                <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
-              )}
-            </div>
-          ) : (
-            <button
-              onClick={connect}
-              style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
-            >
-              Connect Wallet
-            </button>
-          )}
-        </div>
+        {!walletAddress && (
+          <button
+            onClick={connect}
+            style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
+          >
+            Connect Wallet
+          </button>
+        )}
       </header>
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1rem' }}>
+        {/* User dashboard — shown only when wallet is connected */}
+        {walletAddress && (
+          <UserDashboard
+            walletAddress={walletAddress}
+            tokenBalance={tokenBalance}
+            decimals={decimals}
+            proposals={proposals}
+            votedMap={votedMap}
+            onCreateProposal={() => alert('Proposal creation coming soon.')}
+            onDisconnect={disconnect}
+          />
+        )}
+
         {/* Filters */}
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <input
@@ -105,7 +130,7 @@ export default function App() {
 
         {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
-        
+
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
@@ -118,7 +143,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>
