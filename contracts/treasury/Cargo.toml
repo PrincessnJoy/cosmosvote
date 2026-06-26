@@ -12,6 +12,8 @@ soroban-sdk = { version = "26.0.1" }
 
 [dev-dependencies]
 soroban-sdk = { version = "26.0.1", features = ["testutils"] }
+cosmosvote-governance = { path = "../governance", features = ["testutils"] }
+cosmosvote-token = { path = "../token", features = ["testutils"] }
 
 [features]
 testutils = ["soroban-sdk/testutils"]
