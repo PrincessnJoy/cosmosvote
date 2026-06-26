@@ -107,6 +107,15 @@ Decentralized governance is critical for DAOs, protocols, and communities to mak
 - Stellar CLI (optional, for deployment)
 - Docker & Docker Compose (optional)
 
+### Supported Versions
+
+| Component | Supported versions | Notes |
+|-----------|-------------------|-------|
+| Rust | 1.75 (MSRV), stable, beta | Tested via CI matrix |
+| Node.js | 20 (LTS), 22 (current LTS) | For frontend build |
+
+Matrix build status is tracked in the [Matrix Tests workflow](.github/workflows/matrix.yml).
+
 ### Installation & Testing
 
 ```bash
