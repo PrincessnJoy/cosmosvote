@@ -68,6 +68,10 @@ wasm-size: build
 	@echo "=== WASM binary sizes ==="
 	@find target/wasm32-unknown-unknown/release -name "*.wasm" | xargs ls -lh 2>/dev/null || echo "No WASM files found"
 
+## Run mutation tests against governance contract (requires cargo-mutants)
+mutants:
+	cargo mutants -p cosmosvote-governance --features testutils
+
 ## Run all checks (CI equivalent)
 ci: fmt-check lint test build
 
