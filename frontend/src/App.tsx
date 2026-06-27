@@ -43,6 +43,13 @@ export default function App() {
 
   const disconnect = () => setWalletAddress(null);
 
+  useMeta(
+    selected ? selected.title : 'Proposals',
+    selected
+      ? `${selected.title} — ${selected.description.slice(0, 120)}`
+      : 'Browse and vote on on-chain governance proposals for CosmosVote on Stellar Soroban.'
+  );
+
   useEffect(() => {
     if (!walletAddress) { setTokenBalance(null); return; }
     fetchTokenBalance(walletAddress).then(setTokenBalance).catch(() => setTokenBalance(null));
