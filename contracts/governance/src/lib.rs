@@ -619,7 +619,12 @@ impl GovernanceContract {
     }
 
     /// Cancel an active proposal. Admin only.
-    pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError> {
+    pub fn cancel(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+        reason: Option<String>,
+    ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
@@ -631,6 +636,7 @@ impl GovernanceContract {
         }
 
         proposal.state = ProposalState::Cancelled;
+        proposal.cancellation_reason = reason.clone();
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         let active_count = GovernanceStorage::active_proposal_count(&env);
         if active_count > 0 {
