@@ -2,10 +2,32 @@
 //!
 //! * Instance storage  — contract-wide config (cheap, loaded once per call)
 //! * Persistent storage — per-proposal / per-voter data (survives ledger expiry)
+//!
+//! ## Storage TTL assumptions
+//!
+//! Soroban persistent storage entries expire after their TTL (time-to-live) elapses
+//! without a bump. We extend the TTL on every write to keep proposal and vote data
+//! alive for the full expected proposal lifecycle plus a safety buffer:
+//!
+//! * `PROPOSAL_TTL_LEDGERS` — ~30 days at 5 s/ledger = 518 400 ledgers.
+//!   Covers the maximum voting duration (2 592 000 s) plus buffer.
+//! * `VOTE_TTL_LEDGERS` — same window; vote records must outlive their proposal.
+//! * `COOLDOWN_TTL_LEDGERS` — ~7 days; only needs to cover the cooldown period.
 
 use soroban_sdk::{Address, Env};
 
 use crate::types::{ContractState, Proposal, ProposalState, VoteRecord};
+
+// ---------------------------------------------------------------------------
+// TTL constants (in ledgers, assuming ~5 s/ledger)
+// ---------------------------------------------------------------------------
+
+/// ~30 days. Covers max voting duration (2 592 000 s) with buffer.
+const PROPOSAL_TTL_LEDGERS: u32 = 518_400;
+/// Same as proposal TTL — vote records must outlive the proposal.
+const VOTE_TTL_LEDGERS: u32 = 518_400;
+/// ~7 days — sufficient to cover any cooldown period.
+const COOLDOWN_TTL_LEDGERS: u32 = 120_960;
 
 // ---------------------------------------------------------------------------
 // Storage keys
