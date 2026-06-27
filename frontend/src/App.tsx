@@ -154,7 +154,7 @@ export default function App() {
               onClick={openModal}
               style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
             >
-              Connect Wallet
+              {t.connect_wallet}
             </button>
           )}
         </div>
@@ -165,7 +165,7 @@ export default function App() {
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <input
             type="search"
-            placeholder="Search proposals..."
+            placeholder={t.search_placeholder}
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ flex: 1, minWidth: 200, padding: '0.5rem 0.75rem', border: '1px solid var(--input-border)', borderRadius: 6, fontSize: '0.875rem', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
@@ -177,7 +177,7 @@ export default function App() {
             style={{ padding: '0.5rem 0.75rem', border: '1px solid var(--input-border)', borderRadius: 6, fontSize: '0.875rem', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
             aria-label="Filter by state"
           >
-            <option value="All">All States</option>
+            <option value="All">{t.filter_all_states}</option>
             {ALL_STATES.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
