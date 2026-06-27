@@ -162,7 +162,6 @@ export default function App() {
 
       <ErrorBoundary>
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1rem' }}>
-        {/* Filters */}
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <input
             type="search"
@@ -204,7 +203,6 @@ export default function App() {
           ))}
         </div>
 
-        {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
 
         <div style={{ display: 'grid', gap: '1rem' }}>

@@ -1,4 +1,5 @@
 import type { Proposal } from '../types';
+import type { ToastType } from './Toast';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useRef, useState } from 'react';
 import { formatTokenAmount, maskAddress } from '../utils';
@@ -97,6 +98,22 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
   const showExecute = isAdmin && p.state === 'Passed';
   const showCancel = isAdmin && (p.state === 'Active' || p.state === 'Passed');
 
+  // Simulated vote submission — real implementation would call castVote via SDK
+  async function handleVote(voteType: string) {
+    if (!walletAddress || !onToast) return;
+    const pendingId = onToast('pending', `Submitting ${voteType} vote — confirm in wallet…`);
+    try {
+      // Placeholder: actual SDK call would go here
+      await new Promise(res => setTimeout(res, 1000));
+      onToast('success', `Vote "${voteType}" submitted on proposal #${String(p.id)}.`);
+    } catch (e) {
+      onToast('error', `Vote failed: ${e instanceof Error ? e.message : 'unknown error'}`);
+    } finally {
+      // dismiss pending (the success/error toast replaced it)
+      void pendingId;
+    }
+  }
+
   return (
     <div
       style={{
@@ -172,7 +189,24 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
             {hasVoted === null ? 'Checking vote status...' :
               hasVoted && voteRecord
                 ? `You voted ${voteRecord.vote} with weight ${formatTokenAmount(voteRecord.weight, decimals)}`
-                : 'You have not voted on this proposal'}
+                : p.state === 'Active'
+                  ? (
+                    <div>
+                      <div style={{ marginBottom: '0.5rem' }}>Cast your vote:</div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        {['Yes', 'No', 'Abstain'].map(v => (
+                          <button
+                            key={v}
+                            onClick={() => handleVote(v)}
+                            style={{ flex: 1, padding: '0.4rem', borderRadius: 6, border: '1px solid #d1d5db', cursor: 'pointer', background: '#fff', fontSize: '0.8rem' }}
+                          >
+                            {v === 'Yes' ? '✅' : v === 'No' ? '❌' : '⬜'} {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                  : 'You have not voted on this proposal.'}
           </div>
         )}
 
