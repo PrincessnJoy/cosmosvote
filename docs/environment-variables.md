@@ -1,134 +1,192 @@
-# Environment Variables & Secrets
+# Environment Variables & Secret Injection
 
-This document covers all environment variables used by CosmosVote scripts and the frontend, how to configure them, and best practices for managing secrets.
+This document covers every environment variable used by CosmosVote — scripts, deployment, and the frontend — with examples for local development and production.
 
 ---
 
 ## Quick Start
 
 ```bash
-# Root (Rust scripts / deployment)
+# Backend / scripts
 cp .env.example .env
 
 # Frontend
 cp frontend/.env.example frontend/.env.local
 ```
 
-Never commit `.env` or `.env.local` to version control — they are listed in `.gitignore`.
+Never commit `.env` or `.env.local` to version control. Both files are listed in `.gitignore`.
 
 ---
 
-## Root `.env` — Deployment & Scripts
+## Backend & Script Variables (`.env`)
 
-Used by `scripts/deploy.sh`, `scripts/deploy_mainnet.sh`, and other shell scripts.
+### Network
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `NETWORK` | Yes | `local` | Target network: `local`, `testnet`, or `mainnet` |
-| `STELLAR_RPC_URL` | Yes | `http://localhost:8000` | Soroban RPC endpoint |
-| `STELLAR_NETWORK_PASSPHRASE` | Yes | Standalone passphrase | Network identity string |
-| `STELLAR_SECRET_KEY` | Yes | — | **Secret.** Ed25519 secret key (`S…`) for the deploying admin account |
-| `GOVERNANCE_CONTRACT_ID` | After deploy | — | Contract ID of the deployed governance contract (set by deploy script) |
-| `TOKEN_CONTRACT_ID` | After deploy | — | Contract ID of the deployed token contract (set by deploy script) |
-| `MIN_PROPOSAL_BALANCE` | No | `1000000` | Minimum token units required to create a proposal (0 = no minimum) |
-| `PROPOSAL_COOLDOWN` | No | `86400` | Seconds a proposer must wait between proposals (0 = no cooldown) |
-| `RESTRICT_ADMIN_VOTE` | No | `true` | `true` prevents the admin from voting on proposals they created |
-| `INITIAL_TOKEN_SUPPLY` | No | `1000000000` | Token units minted to admin at initialization |
+| `NETWORK` | ✅ | `local` | Target network. One of `local`, `testnet`, `mainnet`. |
+| `STELLAR_RPC_URL` | ✅ | `http://localhost:8000` | Soroban RPC endpoint. |
+| `STELLAR_NETWORK_PASSPHRASE` | ✅ | Standalone passphrase | Network passphrase for transaction signing. |
 
-### Network Passphrases
+**Per-network values:**
 
-| Network | Passphrase |
-|---------|-----------|
-| Local (standalone) | `Standalone Network ; February 2021` |
-| Testnet | `Test SDF Network ; September 2015` |
-| Mainnet | `Public Global Stellar Network ; September 2015` |
+| Network | `STELLAR_RPC_URL` | `STELLAR_NETWORK_PASSPHRASE` |
+|---------|-------------------|------------------------------|
+| `local` | `http://localhost:8000` | `Standalone Network ; February 2021` |
+| `testnet` | `https://soroban-testnet.stellar.org` | `Test SDF Network ; September 2015` |
+| `mainnet` | `https://soroban-mainnet.stellar.org` | `Public Global Stellar Network ; September 2015` |
 
-### Per-network RPC URLs
-
-| Network | RPC URL |
-|---------|---------|
-| Local | `http://localhost:8000` |
-| Testnet | `https://soroban-testnet.stellar.org` |
-| Mainnet | `https://soroban-mainnet.stellar.org` |
-
----
-
-## Frontend `frontend/.env.local` — Vite / React
-
-Vite only exposes variables prefixed with `VITE_` to the browser bundle.
+### Admin Keys
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `VITE_NETWORK` | Yes | Network to connect to: `testnet` or `mainnet` |
-| `VITE_GOVERNANCE_CONTRACT_ID` | Yes | Stellar contract ID for the governance contract (starts with `C`, 56 chars) |
-| `VITE_TOKEN_CONTRACT_ID` | Yes | Stellar contract ID for the token contract (starts with `C`, 56 chars) |
+| `STELLAR_SECRET_KEY` | ✅ | Stellar secret key (`S...`, 56 chars) for the deploying admin account. **Never share or commit this value.** |
 
-Example `frontend/.env.local`:
+For production, inject this via your CI/CD secrets manager — see [Secret Injection](#secret-injection) below.
 
-```dotenv
-VITE_NETWORK=testnet
-VITE_GOVERNANCE_CONTRACT_ID=CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-VITE_TOKEN_CONTRACT_ID=CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-```
+### Contract Addresses
 
-The frontend calls `validateConfig()` on startup and throws if either contract ID is missing or malformed.
+Populated automatically by `scripts/deploy.sh`. Set manually if deploying outside the script.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GOVERNANCE_CONTRACT_ID` | ✅ (post-deploy) | Deployed governance contract address (`C...`, 56 chars). |
+| `TOKEN_CONTRACT_ID` | ✅ (post-deploy) | Deployed token contract address (`C...`, 56 chars). |
+
+### Governance Parameters
+
+These configure the on-chain governance contract at initialization time.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `MIN_PROPOSAL_BALANCE` | ❌ | `1000000` | Minimum token balance (in base units) to submit a proposal. Set `0` to disable. |
+| `PROPOSAL_COOLDOWN` | ❌ | `86400` | Minimum seconds between proposals per address. Set `0` to disable. |
+| `RESTRICT_ADMIN_VOTE` | ❌ | `true` | If `true`, the admin cannot vote on proposals they created. |
+
+### Token Parameters
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `INITIAL_TOKEN_SUPPLY` | ❌ | `1000000000` | Initial token supply (base units) minted to the admin address on first deploy. |
 
 ---
 
-## Secret Management Best Practices
+## Frontend Variables (`frontend/.env.local`)
+
+Vite exposes only variables prefixed with `VITE_` to the browser bundle.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_NETWORK` | ✅ | Network to connect to. One of `testnet`, `mainnet`. |
+| `VITE_GOVERNANCE_CONTRACT_ID` | ✅ | Governance contract address (`C...`, 56 chars). |
+| `VITE_TOKEN_CONTRACT_ID` | ✅ | Token contract address (`C...`, 56 chars). |
+
+The frontend validates these at startup via `validateConfig()` in `src/config.ts` and shows a clear error banner if they are missing or malformed.
+
+---
+
+## Example Configurations
 
 ### Local Development
 
-- Copy `.env.example` → `.env` and fill in your values. The `.env` file is gitignored.
-- Do not share your `STELLAR_SECRET_KEY` with anyone or paste it into chat, issues, or PRs.
-- Use a dedicated **testnet** key for development — never reuse your mainnet key locally.
-- Rotate any key that has been accidentally committed or exposed immediately.
+```bash
+# .env
+NETWORK=local
+STELLAR_RPC_URL=http://localhost:8000
+STELLAR_NETWORK_PASSPHRASE="Standalone Network ; February 2021"
+STELLAR_SECRET_KEY=SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+GOVERNANCE_CONTRACT_ID=
+TOKEN_CONTRACT_ID=
+MIN_PROPOSAL_BALANCE=0
+PROPOSAL_COOLDOWN=0
+RESTRICT_ADMIN_VOTE=false
+INITIAL_TOKEN_SUPPLY=1000000000
+```
 
-### CI / GitHub Actions
+```bash
+# frontend/.env.local
+VITE_NETWORK=testnet
+VITE_GOVERNANCE_CONTRACT_ID=CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+VITE_TOKEN_CONTRACT_ID=CBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
+```
 
-- Store secrets under **Settings → Secrets and variables → Actions** in the GitHub repo.
-- Reference them in workflows with `${{ secrets.SECRET_NAME }}` — they are masked in logs.
-- Grant only the minimum permissions needed (e.g., a deploy key scoped to one environment).
-- Never `echo` or `print` a secret value in a workflow step.
+### Testnet
+
+```bash
+# .env
+NETWORK=testnet
+STELLAR_RPC_URL=https://soroban-testnet.stellar.org
+STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+STELLAR_SECRET_KEY=SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+GOVERNANCE_CONTRACT_ID=C...
+TOKEN_CONTRACT_ID=C...
+MIN_PROPOSAL_BALANCE=1000000
+PROPOSAL_COOLDOWN=86400
+RESTRICT_ADMIN_VOTE=true
+INITIAL_TOKEN_SUPPLY=1000000000
+```
+
+### Production (Mainnet)
+
+Never store `STELLAR_SECRET_KEY` in a plain `.env` file in production. Use secret injection instead — see below.
+
+```bash
+# .env (non-secret values only)
+NETWORK=mainnet
+STELLAR_RPC_URL=https://soroban-mainnet.stellar.org
+STELLAR_NETWORK_PASSPHRASE="Public Global Stellar Network ; September 2015"
+GOVERNANCE_CONTRACT_ID=C...
+TOKEN_CONTRACT_ID=C...
+MIN_PROPOSAL_BALANCE=1000000
+PROPOSAL_COOLDOWN=86400
+RESTRICT_ADMIN_VOTE=true
+INITIAL_TOKEN_SUPPLY=1000000000
+```
+
+---
+
+## Secret Injection
+
+`STELLAR_SECRET_KEY` is the only secret in this project. Inject it at runtime, never at rest.
+
+### GitHub Actions
 
 ```yaml
-# Good — secret passed as env var
 - name: Deploy contracts
   env:
     STELLAR_SECRET_KEY: ${{ secrets.STELLAR_SECRET_KEY }}
   run: bash scripts/deploy.sh
-
-# Bad — secret visible in logs
-- run: bash scripts/deploy.sh --key ${{ secrets.STELLAR_SECRET_KEY }}
 ```
 
-### Production Deployments
+Store the value in **Settings → Secrets and variables → Actions**.
 
-- Use a dedicated mainnet admin key that is stored in a hardware wallet or secrets manager (e.g., AWS Secrets Manager, HashiCorp Vault).
-- Rotate `STELLAR_SECRET_KEY` after any personnel change with admin access.
-- Audit contract ownership with `stellar contract invoke ... -- admin` after each deployment to confirm the expected admin address.
-- The `deploy_mainnet.sh` script requires `NETWORK=mainnet` explicitly to prevent accidental mainnet deployment.
+### Docker / docker-compose
 
-### What to Never Commit
+```yaml
+# docker-compose.yml
+services:
+  deploy:
+    environment:
+      - STELLAR_SECRET_KEY=${STELLAR_SECRET_KEY}
+```
 
-- `STELLAR_SECRET_KEY` values
-- Any file named `.env`, `.env.local`, `.env.production`
-- Private keys, mnemonics, or seed phrases of any kind
+Pass at runtime:
+```bash
+STELLAR_SECRET_KEY=S... docker compose run deploy
+```
 
-These are all covered by `.gitignore`. Run `git status` before committing to confirm no secret files are staged.
+### Other CI/CD systems
+
+Inject `STELLAR_SECRET_KEY` as an environment variable from your platform's secret store (HashiCorp Vault, AWS Secrets Manager, etc.) and never write it to disk.
 
 ---
 
-## Validating Your Configuration
+## Validation
+
+Run `scripts/validate-env.sh` before any deployment to confirm all required variables are set:
 
 ```bash
-# Check that all required variables are set before deploying
-source .env
-: "${NETWORK:?NETWORK is required}"
-: "${STELLAR_RPC_URL:?STELLAR_RPC_URL is required}"
-: "${STELLAR_SECRET_KEY:?STELLAR_SECRET_KEY is required}"
+bash scripts/validate-env.sh
 ```
 
-The deploy scripts perform these checks automatically and exit with a clear error message if a required variable is missing.
-
-For the frontend, `validateConfig()` in `src/config.ts` checks that both contract IDs are present and well-formed on app startup.
+The frontend performs its own validation on startup via `src/config.ts`.
