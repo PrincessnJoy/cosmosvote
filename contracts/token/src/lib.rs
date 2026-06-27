@@ -79,6 +79,10 @@ impl TokenContract {
         TokenStorage::version(&env)
     }
 
+    pub fn is_paused(env: Env) -> bool {
+        TokenStorage::is_paused(&env)
+    }
+
     // -----------------------------------------------------------------------
     // Transfers
     // -----------------------------------------------------------------------
@@ -91,6 +95,7 @@ impl TokenContract {
         amount: i128,
     ) -> Result<(), ContractError> {
         from.require_auth();
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
         let from_bal = TokenStorage::balance(&env, &from);
@@ -119,6 +124,7 @@ impl TokenContract {
         amount: i128,
     ) -> Result<(), ContractError> {
         spender.require_auth();
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
         let allowance = TokenStorage::allowance(&env, &from, &spender);
@@ -226,6 +232,24 @@ impl TokenContract {
         Ok(())
     }
 
+    /// Pause the contract — blocks all transfers. Admin only.
+    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        TokenStorage::set_paused(&env, true);
+        TokenEvents::paused(&env, &admin);
+        Ok(())
+    }
+
+    /// Unpause the contract — re-enables transfers. Admin only.
+    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        TokenStorage::set_paused(&env, false);
+        TokenEvents::unpaused(&env, &admin);
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
@@ -241,6 +265,14 @@ impl TokenContract {
     fn assert_admin(env: &Env, caller: &Address) -> Result<(), ContractError> {
         if TokenStorage::admin(env) != *caller {
             Err(ContractError::NotAdmin)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn assert_not_paused(env: &Env) -> Result<(), ContractError> {
+        if TokenStorage::is_paused(env) {
+            Err(ContractError::ContractPaused)
         } else {
             Ok(())
         }

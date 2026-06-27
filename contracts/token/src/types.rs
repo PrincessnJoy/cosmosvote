@@ -13,4 +13,5 @@ pub enum ContractError {
     InvalidAmount       = 20,
     InsufficientBalance = 21,
     AllowanceExceeded   = 22,
+    ContractPaused      = 30,
 }

@@ -167,3 +167,56 @@ fn test_version() {
     let (token, _, _) = setup(&env);
     assert_eq!(token.version(), (1u32, 0u32, 0u32));
 }
+
+// ---------------------------------------------------------------------------
+// Pause / unpause
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_pause_blocks_transfer() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    token.pause(&admin);
+    assert!(token.is_paused());
+    let result = token.try_transfer(&admin, &user, &1_000i128);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+}
+
+#[test]
+fn test_pause_blocks_transfer_from() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let spender = Address::generate(&env);
+    token.approve(&admin, &spender, &1_000i128);
+    token.pause(&admin);
+    let result = token.try_transfer_from(&spender, &admin, &user, &100i128);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+}
+
+#[test]
+fn test_unpause_restores_transfer() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    token.pause(&admin);
+    token.unpause(&admin);
+    assert!(!token.is_paused());
+    token.transfer(&admin, &user, &1_000i128);
+    assert_eq!(token.balance(&user), 1_000);
+}
+
+#[test]
+fn test_pause_non_admin_fails() {
+    let env = Env::default();
+    let (token, _, user) = setup(&env);
+    let result = token.try_pause(&user);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
+fn test_unpause_non_admin_fails() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    token.pause(&admin);
+    let result = token.try_unpause(&user);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}

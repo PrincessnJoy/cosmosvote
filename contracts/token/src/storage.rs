@@ -9,6 +9,7 @@ pub enum InstanceKey {
     TotalSupply,
     Initialized,
     Version,
+    Paused,
 }
 
 #[soroban_sdk::contracttype]
@@ -64,6 +65,13 @@ impl TokenStorage {
         env.storage()
             .persistent()
             .set(&PersistentKey::Balance(owner.clone()), &v);
+    }
+
+    pub fn is_paused(env: &Env) -> bool {
+        env.storage().instance().get(&InstanceKey::Paused).unwrap_or(false)
+    }
+    pub fn set_paused(env: &Env, v: bool) {
+        env.storage().instance().set(&InstanceKey::Paused, &v);
     }
 
     pub fn allowance(env: &Env, owner: &Address, spender: &Address) -> i128 {
