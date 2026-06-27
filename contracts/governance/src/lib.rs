@@ -21,6 +21,8 @@ mod prop_tests;
 mod benchmarks;
 #[cfg(test)]
 mod event_tests;
+#[cfg(test)]
+mod cross_contract_tests;
 
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
@@ -407,11 +409,13 @@ impl GovernanceContract {
             return Err(ContractError::NoVotingPower);
         }
 
-        // Weight = voter's own balance (delegators' balances are added via get_delegated_weight).
-        // Since we cannot enumerate all delegators on-chain, governance uses an empty list here;
-        // the voter's own balance is always included. Delegators who want their weight counted
-        // must have their delegate cast the vote on their behalf.
-        let weight = token_client.get_delegated_weight(&voter, &Vec::new(&env));
+        // Use the stored proposal snapshot ledger to read historical balances.
+        // Record the voter's snapshot balance as their voting weight. Delegated
+        // weight is not enumerated on-chain; off-chain tooling should provide
+        // delegator lists if needed. Using `balance_at` prevents manipulation
+        // of balances after proposal creation from affecting the tally.
+        let snapshot_ledger = proposal.snapshot_ledger as u64;
+        let weight = token_client.balance_at(&voter, &snapshot_ledger);
         if weight <= 0 {
             return Err(ContractError::NoVotingPower);
         }
@@ -578,8 +582,29 @@ impl GovernanceContract {
             .and_then(|v| v.checked_add(proposal.votes_abstain))
             .ok_or(ContractError::ArithmeticOverflow)?;
 
-        let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
-        proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        if !proposal.choices.is_empty() {
+            // Multi-choice: votes_yes holds total participation weight.
+            let total_participation = proposal.votes_yes;
+            if total_participation >= proposal.quorum {
+                // Find choice with maximum votes (first-past-the-post).
+                let mut best_index: u32 = 0;
+                let mut best_weight: i128 = GovernanceStorage::choice_votes(&env, proposal_id, 0);
+                for i in 1..proposal.choices.len() {
+                    let w = GovernanceStorage::choice_votes(&env, proposal_id, i);
+                    if w > best_weight {
+                        best_weight = w;
+                        best_index = i;
+                    }
+                }
+                proposal.winning_choice = Some(best_index);
+                proposal.state = ProposalState::Passed;
+            } else {
+                proposal.state = ProposalState::Rejected;
+            }
+        } else {
+            let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
+            proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        }
 
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         let active_count = GovernanceStorage::active_proposal_count(&env);
@@ -617,7 +642,12 @@ impl GovernanceContract {
     }
 
     /// Cancel an active proposal. Admin only.
-    pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError> {
+    pub fn cancel(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+        reason: Option<String>,
+    ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
@@ -629,6 +659,7 @@ impl GovernanceContract {
         }
 
         proposal.state = ProposalState::Cancelled;
+        proposal.cancellation_reason = reason.clone();
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         let active_count = GovernanceStorage::active_proposal_count(&env);
         if active_count > 0 {
@@ -649,6 +680,16 @@ impl GovernanceContract {
 
         env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
         GovernanceEvents::contract_upgraded(&env, &new_wasm_hash);
+        Ok(())
+    }
+
+    /// Upgrade the governance contract code. Admin only.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        GovernanceEvents::upgraded(&env, &new_wasm_hash);
         Ok(())
     }
 
@@ -766,6 +807,20 @@ impl GovernanceContract {
         Ok(())
     }
 
+    /// Cancel a pending admin transfer. Admin only.
+    /// Clears the pending admin without transferring privileges.
+    pub fn cancel_admin_transfer(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        let pending = GovernanceStorage::pending_admin(&env)
+            .ok_or(ContractError::NoPendingAdmin)?;
+
+        GovernanceStorage::set_pending_admin(&env, None);
+        GovernanceEvents::admin_transfer_cancelled(&env, &admin, &pending);
+        Ok(())
+    }
+
     /// Pause all state-changing operations. Admin only.
     pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
         admin.require_auth();
@@ -789,6 +844,51 @@ impl GovernanceContract {
         }
         GovernanceStorage::set_paused(&env, false);
         GovernanceEvents::unpaused(&env, &admin);
+        Ok(())
+    }
+
+    /// Update the minimum token balance required to create proposals. Admin only.
+    pub fn set_min_proposal_balance(
+        env: Env,
+        admin: Address,
+        new_value: i128,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        if new_value < 0 {
+            return Err(ContractError::InsufficientBalance);
+        }
+        let old_value = GovernanceStorage::min_proposal_balance(&env);
+        GovernanceStorage::set_min_proposal_balance(&env, new_value);
+        GovernanceEvents::min_balance_updated(&env, &admin, old_value, new_value);
+        Ok(())
+    }
+
+    /// Update the per-proposer cooldown in seconds. Admin only.
+    pub fn set_proposal_cooldown(
+        env: Env,
+        admin: Address,
+        new_value: u64,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        let old_value = GovernanceStorage::proposal_cooldown(&env);
+        GovernanceStorage::set_proposal_cooldown(&env, new_value);
+        GovernanceEvents::cooldown_updated(&env, &admin, old_value, new_value);
+        Ok(())
+    }
+
+    /// Update the admin vote restriction flag. Admin only.
+    pub fn set_restrict_admin_vote(
+        env: Env,
+        admin: Address,
+        new_value: bool,
+    ) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        let old_value = GovernanceStorage::restrict_admin_vote(&env);
+        GovernanceStorage::set_restrict_admin_vote(&env, new_value);
+        GovernanceEvents::restrict_admin_vote_updated(&env, &admin, old_value, new_value);
         Ok(())
     }
 

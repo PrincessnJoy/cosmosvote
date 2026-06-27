@@ -2,17 +2,19 @@
 
 #![cfg(test)]
 
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, String};
 use cosmosvote_token::TokenContractClient;
 use crate::{types::Vote, GovernanceContract, GovernanceContractClient};
 use cosmosvote_token::TokenContract;
 
 // ---------------------------------------------------------------------------
 // Baselines (Target instruction counts)
+// See docs/instruction-budgets.md for rationale and Soroban limits.
 // ---------------------------------------------------------------------------
 
 const BASELINE_CREATE_PROPOSAL: u64 = 5_000_000;
 const BASELINE_CAST_VOTE: u64 = 2_000_000;
+const BASELINE_FINALISE: u64 = 3_000_000;
 
 // ---------------------------------------------------------------------------
 // Benchmark runner
@@ -102,5 +104,41 @@ fn bench_cast_vote() {
         "cast_vote used {} instructions, exceeds 10% over baseline {}",
         instructions,
         BASELINE_CAST_VOTE
+    );
+}
+
+#[test]
+fn bench_finalise() {
+    let (env, gov, token, admin, proposer) = setup_env();
+
+    let id = gov.create_proposal(
+        &proposer,
+        &String::from_str(&env, "Finalise Benchmark"),
+        &String::from_str(&env, "Measuring instruction count for finalise"),
+        &1_000i128,
+        &3600u64,
+        &None,
+        &None,
+    );
+
+    let voter = Address::generate(&env);
+    token.mint(&admin, &voter, &1_000i128);
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+
+    let end_time = gov.get_proposal(&id).end_time;
+    env.ledger().with_mut(|l| l.timestamp = end_time + 1);
+
+    env.as_contract(&gov.address, || {
+        env.budget().reset_unlimited();
+    });
+    let instructions_before = env.budget().cpu_instruction_cost();
+    gov.finalise(&id);
+    let instructions = env.budget().cpu_instruction_cost() - instructions_before;
+
+    assert!(
+        instructions <= threshold(BASELINE_FINALISE),
+        "finalise used {} instructions, exceeds 10% over baseline {}",
+        instructions,
+        BASELINE_FINALISE
     );
 }

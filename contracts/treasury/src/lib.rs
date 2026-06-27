@@ -124,4 +124,78 @@ mod test {
         client.initialize(&governance);
         client.initialize(&governance);
     }
+
+    #[test]
+    fn test_governance_triggers_treasury_disbursement() {
+        use cosmosvote_governance::{GovernanceContract, GovernanceContractClient};
+        use cosmosvote_governance::types::{TreasuryAction as GovTreasuryAction, TreasuryAsset as GovTreasuryAsset};
+        use cosmosvote_token::{TokenContract, TokenContractClient};
+
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let proposer = Address::generate(&env);
+        let recipient = Address::generate(&env);
+
+        // Deploy token contract and mint funds to the treasury later
+        let token_id = env.register(TokenContract, ());
+        let token = TokenContractClient::new(&env, &token_id);
+        token.initialize(
+            &admin,
+            &1_000_000_000i128,
+            &soroban_sdk::String::from_str(&env, "CosmosVote"),
+            &soroban_sdk::String::from_str(&env, "VOTE"),
+            &7u32,
+        );
+
+        // Register governance and treasury contracts
+        let gov_id = env.register(GovernanceContract, ());
+        let treasury_id = env.register(TreasuryContract, ());
+
+        // Initialize treasury with governance address
+        let treasury_client = TreasuryContractClient::new(&env, &treasury_id);
+        treasury_client.initialize(&gov_id);
+
+        // Mint some tokens to the treasury so it can disburse
+        token.mint(&admin, &treasury_client.address, &1_000i128);
+
+        // Initialize governance with treasury address and token
+        let gov = GovernanceContractClient::new(&env, &gov_id);
+        gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &Some(treasury_id));
+
+        // Create a proposal that disburses 500 tokens to `recipient`
+        let action = GovTreasuryAction {
+            recipient: recipient.clone(),
+            amount: 500i128,
+            asset: GovTreasuryAsset::Token(token_id.clone()),
+        };
+
+        let id = gov.create_proposal(
+            &proposer,
+            &soroban_sdk::String::from_str(&env, "Treasury Disburse"),
+            &soroban_sdk::String::from_str(&env, "Disburse tokens to recipient"),
+            &1i128,
+            &3600u64,
+            &Some(action),
+        );
+
+        // Give proposer a small balance and vote yes
+        token.mint(&admin, &proposer, &1i128);
+        gov.cast_vote(&proposer, &id, &cosmosvote_governance::types::Vote::Yes);
+
+        // Fast-forward time and finalize
+        let proposal = gov.get_proposal(&id);
+        env.ledger().set_timestamp(proposal.end_time + 1);
+        gov.finalise(&id);
+
+        // Execute as admin (admin has auth via mock_all_auths)
+        gov.execute(&admin, &id);
+
+        // Verify recipient received tokens and treasury balance decreased
+        let recipient_bal = token.balance(&recipient);
+        assert_eq!(recipient_bal, 500i128);
+        let treasury_bal = token.balance(&treasury_client.address);
+        assert_eq!(treasury_bal, 500i128);
+    }
 }
