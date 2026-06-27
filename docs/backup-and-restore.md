@@ -8,16 +8,16 @@ After deploying CosmosVote contracts, back up the following artifacts:
 
 | Artifact | Location | Description |
 |----------|----------|-------------|
-| Contract IDs | `.env` / `GOVERNANCE_CONTRACT_ID`, `TOKEN_CONTRACT_ID` | On-chain addresses of deployed contracts |
+| Contract IDs | `.env` (`GOVERNANCE_CONTRACT_ID`, `TOKEN_CONTRACT_ID`) | On-chain addresses of deployed contracts |
 | WASM hashes | Deployment script output | Identifies the exact code version deployed |
-| Deployer key | Secure secret storage | Account that owns admin privileges |
+| Deployer key | Secure secret storage | Account that holds admin privileges |
 | Network config | `config/<env>.toml` | RPC endpoint and passphrase used at deploy time |
 
 ## Backing Up Contract Deployment Metadata
 
 ### 1. Save contract IDs immediately after deployment
 
-After running a deploy script, the contract IDs are printed to stdout. Persist them:
+After running a deploy script, contract IDs are printed to stdout. Persist them:
 
 ```bash
 # Capture deploy output
@@ -42,25 +42,26 @@ Never commit `STELLAR_SECRET_KEY` to version control. Use a secrets manager:
 - **1Password** / **Bitwarden** for team environments
 - **Encrypted local file**: `gpg --symmetric .env` → store the `.env.gpg`
 
-### 4. Version-pin your WASM artifacts
+### 4. Version-pin WASM artifacts
 
 ```bash
-# After make build, archive the compiled WASMs
-tar -czf backups/wasm-$(git rev-parse --short HEAD).tar.gz target/wasm32-unknown-unknown/release/*.wasm
+# After make build, archive the compiled WASMs with the git commit SHA
+tar -czf backups/wasm-$(git rev-parse --short HEAD).tar.gz \
+  target/wasm32-unknown-unknown/release/*.wasm
 ```
 
 ## Recovery Steps
 
 ### Scenario A: Lost contract IDs
 
-If you lose the `GOVERNANCE_CONTRACT_ID` or `TOKEN_CONTRACT_ID`:
+If you lose `GOVERNANCE_CONTRACT_ID` or `TOKEN_CONTRACT_ID`:
 
-1. Check deployment logs in `backups/`
+1. Check deployment logs in `backups/`.
 2. Query the Stellar network for contracts deployed by your account:
    ```bash
    stellar contract history --network <env> --source-account <YOUR_PUBLIC_KEY>
    ```
-3. Restore the IDs to `.env` and re-verify with:
+3. Restore the IDs to `.env` and verify:
    ```bash
    stellar contract invoke --id <CONTRACT_ID> --network <env> -- get_admin
    ```
@@ -72,7 +73,7 @@ If a deployment script fails mid-way:
 1. Check which contracts were deployed from the log output.
 2. If the token contract deployed but governance did not:
    ```bash
-   # Re-run deploy with existing TOKEN_CONTRACT_ID
+   # Re-run deploy with the existing token contract ID
    TOKEN_CONTRACT_ID=<existing_id> bash scripts/deploy.sh
    ```
 3. If the governance contract initialized but is in a bad state, **do not re-initialize** — call `cancel` on any open proposals via admin, then redeploy with a new contract ID.
@@ -87,11 +88,11 @@ If a deployment script fails mid-way:
    ```bash
    stellar contract invoke --id $GOVERNANCE_CONTRACT_ID --network testnet -- get_proposal_count
    ```
-3. On-chain state is maintained by the Stellar network itself — no data is lost during an RPC outage.
+3. On-chain state is maintained by the Stellar network — no data is lost during an RPC outage.
 
 ### Scenario D: Accidental admin key loss
 
-If the admin private key is lost and you hold a multisig setup:
+If the admin private key is lost and you have a multisig setup:
 
 1. Use the multisig recovery procedure in [`docs/admin-multisig-pattern.md`](./admin-multisig-pattern.md).
 2. If no multisig is configured, the contract admin is permanently locked — redeploy.
@@ -106,9 +107,9 @@ If the admin private key is lost and you hold a multisig setup:
 | AWS/GCP Secrets Manager | Production secret storage |
 | Git (tagged releases) | Version-pin WASM builds to commit SHAs |
 
-## Checklist Before Each Deployment
+## Pre-Deployment Checklist
 
-- [ ] `.env` is backed up securely
+- [ ] `.env` backed up securely
 - [ ] WASM artifacts archived with git SHA
 - [ ] Deployer key stored in secrets manager
 - [ ] Deployment log directory exists (`mkdir -p backups/`)
