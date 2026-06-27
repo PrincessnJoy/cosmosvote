@@ -469,6 +469,48 @@ fn test_cast_vote_yes() {
 }
 
 #[test]
+fn test_vote_uses_snapshot_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let voter = Address::generate(&env);
+
+    let token_id = env.register(TokenContract, ());
+    let token = TokenContractClient::new(&env, &token_id);
+    token.initialize(
+        &admin,
+        &1_000_000_000i128,
+        &String::from_str(&env, "CosmosVote"),
+        &String::from_str(&env, "VOTE"),
+        &7u32,
+    );
+    // initial balance 10M
+    token.mint(&admin, &voter, &10_000_000i128);
+
+    let gov_id = env.register(GovernanceContract, ());
+    let gov = GovernanceContractClient::new(&env, &gov_id);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false, &None);
+
+    // Create proposal -> snapshot captured now
+    let id = gov.create_proposal(
+        &voter,
+        &String::from_str(&env, "Snapshot Test"),
+        &String::from_str(&env, "Balances after snapshot should not count"),
+        &1i128,
+        &3600u64,
+        &None,
+    );
+
+    // Mint more tokens after proposal creation
+    token.mint(&admin, &voter, &5_000_000i128);
+
+    // Vote — weight must equal snapshot (10M), not current (15M)
+    gov.cast_vote(&voter, &id, &Vote::Yes);
+    let record = gov.get_vote(&id, &voter);
+    assert_eq!(record.weight, 10_000_000i128);
+}
+
+#[test]
 fn test_cast_vote_no() {
     let env = Env::default();
     let (gov, _, _, voter, voter2) = setup(&env);

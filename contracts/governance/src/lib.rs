@@ -409,11 +409,13 @@ impl GovernanceContract {
             return Err(ContractError::NoVotingPower);
         }
 
-        // Weight = voter's own balance (delegators' balances are added via get_delegated_weight).
-        // Since we cannot enumerate all delegators on-chain, governance uses an empty list here;
-        // the voter's own balance is always included. Delegators who want their weight counted
-        // must have their delegate cast the vote on their behalf.
-        let weight = token_client.get_delegated_weight(&voter, &Vec::new(&env));
+        // Use the stored proposal snapshot ledger to read historical balances.
+        // Record the voter's snapshot balance as their voting weight. Delegated
+        // weight is not enumerated on-chain; off-chain tooling should provide
+        // delegator lists if needed. Using `balance_at` prevents manipulation
+        // of balances after proposal creation from affecting the tally.
+        let snapshot_ledger = proposal.snapshot_ledger as u64;
+        let weight = token_client.balance_at(&voter, &snapshot_ledger);
         if weight <= 0 {
             return Err(ContractError::NoVotingPower);
         }
