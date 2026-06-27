@@ -1,144 +1,60 @@
 # Mutation Testing
 
-Mutation testing verifies that the existing test suite catches real logic faults by introducing small code changes (mutants) and confirming tests fail.
+CosmosVote uses [cargo-mutants](https://mutants.rs/) to verify that the test suite
+actually catches bugs, not just executes code paths.
 
----
+## What is mutation testing?
 
-## Tool: cargo-mutants
+The tool makes small, targeted changes to the source code (mutants) — flipping a `>` to
+`>=`, removing a `return Err(...)`, etc. — and checks whether the existing tests fail.
+A mutant that is **not caught** (a "surviving mutant") indicates a gap in test coverage.
 
-[`cargo-mutants`](https://mutants.rs/) is the standard mutation testing tool for Rust. It works without any source changes and integrates naturally with Cargo workspaces.
-
-### Installation
-
-```bash
-cargo install cargo-mutants
-```
-
-### Quick Run (governance contract only)
+## Running locally
 
 ```bash
-cargo mutants -p cosmosvote-governance --features testutils
+# Install
+cargo install cargo-mutants --locked
+
+# Run against the governance contract
+cargo mutants \
+  --package cosmosvote-governance \
+  --features testutils \
+  --output mutants-out \
+  -- --features testutils
+
+# View results
+cat mutants-out/missed.txt   # surviving mutants (test gaps)
+cat mutants-out/caught.txt   # caught mutants (good coverage)
 ```
 
-### Full Workspace Run
+## CI integration
 
-```bash
-cargo mutants --features testutils
-```
+Mutation testing runs automatically on every push to `main` and on PRs that touch
+`contracts/governance/src/lib.rs` or `contracts/governance/src/test.rs`.
 
-Results are written to `mutants.out/` — survivors (mutants not caught by tests) are in `mutants.out/missed.txt`.
+Results are uploaded as a CI artifact (`mutants-report`) for 14 days.
 
----
+## Baseline mutation score
 
-## Makefile Target
+| Metric | Value |
+|--------|-------|
+| Tool | cargo-mutants |
+| Target | `cosmosvote-governance` core logic |
+| Baseline run | Pending first CI execution |
+| Surviving mutants | To be documented after first run |
 
-Add to `Makefile`:
+> Update this table after the first CI run by reviewing the `mutants-report` artifact.
 
-```makefile
-## Run mutation tests against governance contract
-mutants:
-	cargo mutants -p cosmosvote-governance --features testutils
-```
+## Addressing surviving mutants
 
-Run with:
+For each surviving mutant in `mutants-out/missed.txt`:
 
-```bash
-make mutants
-```
+1. Understand what the mutant changes (the diff is shown inline).
+2. Add a targeted test that would catch that change.
+3. Re-run `cargo mutants` to confirm the mutant is now caught.
 
----
+Common patterns that produce surviving mutants:
 
-## Key Areas to Target
-
-Focus mutation runs on the governance logic most critical for correctness:
-
-| File | Critical logic |
-|------|---------------|
-| `contracts/governance/src/lib.rs` | `cast_vote`, `finalise`, `create_proposal` |
-| `contracts/governance/src/storage.rs` | `has_voted`, proposal read/write |
-
-To limit the run to specific files:
-
-```bash
-cargo mutants -p cosmosvote-governance --features testutils \
-  -- contracts/governance/src/lib.rs \
-     contracts/governance/src/storage.rs
-```
-
----
-
-## Interpreting Results
-
-| Outcome | Meaning |
-|---------|---------|
-| **Caught** | A test failed when the mutant was applied — test suite is effective |
-| **Missed** (survivor) | No test failed — a logic fault could go undetected |
-| **Timeout** | Mutant caused a test to hang — treat like missed |
-| **Unviable** | Mutant failed to compile — not relevant to test quality |
-
-A **mutation score** is calculated as:
-
-```
-score = caught / (caught + missed + timeout)  × 100%
-```
-
-Target score: ≥ 80% for governance logic.
-
----
-
-## Mutation Score Baseline & Remediation
-
-Run `cargo mutants` and record results in this table after each significant change:
-
-| Date | Caught | Missed | Score | Notes |
-|------|--------|--------|-------|-------|
-| _(run to populate)_ | — | — | — | Baseline |
-
-### Remediating Survivors
-
-For each entry in `mutants.out/missed.txt`:
-
-1. Read the mutant diff — understand what logic was changed.
-2. Identify which behavior is untested.
-3. Add a targeted test that fails on the original mutant and passes on the correct code.
-4. Re-run `cargo mutants` to confirm the survivor is now caught.
-
-Common survivor patterns in governance contracts:
-
-| Mutant pattern | Likely missing test |
-|---------------|---------------------|
-| `>=` changed to `>` in quorum check | Test where `total_votes == quorum` exactly |
-| `>` changed to `>=` in yes/no comparison | Test tie scenario (yes == no → Rejected) |
-| `has_voted` check removed | Test double-vote attempt |
-| `require_auth()` removed | Test unauthorized call is rejected |
-
----
-
-## CI Integration
-
-Add to `.github/workflows/ci.yml` as an optional job:
-
-```yaml
-mutation-tests:
-  runs-on: ubuntu-latest
-  # Run only on push to main or manual trigger — mutation tests are slow
-  if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
-  steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - run: cargo install cargo-mutants
-    - run: cargo mutants -p cosmosvote-governance --features testutils
-    - uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: mutants-out
-        path: mutants.out/
-```
-
----
-
-## Related
-
-- [cargo-mutants documentation](https://mutants.rs/)
-- [`contracts/governance/src/test.rs`](../contracts/governance/src/test.rs) — unit tests
-- [`contracts/governance/src/prop_tests.rs`](../contracts/governance/src/prop_tests.rs) — property-based tests
+- Off-by-one boundary conditions (e.g., `>` vs `>=` in time checks)
+- Error paths that are reachable but not asserted in tests
+- Arithmetic edge cases (zero, max values)
