@@ -240,7 +240,7 @@ Pass conditions: `total_votes >= quorum AND votes_yes > votes_no`
 
 ```rust
 pub fn execute(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError>
-pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError>
+pub fn cancel(env: Env, admin: Address, proposal_id: u64, reason: Option<String>) -> Result<(), ContractError>
 ```
 
 ---

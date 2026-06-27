@@ -355,9 +355,22 @@ fn test_cancel_active_proposal() {
     let env = Env::default();
     let (gov, _, admin, voter, _) = setup(&env);
     let id = make_proposal(&gov, &env, &voter);
-    gov.cancel(&admin, &id);
+    gov.cancel(&admin, &id, &None);
     let updated = gov.get_proposal(&id);
     assert_eq!(updated.state, ProposalState::Cancelled);
+    assert_eq!(updated.cancellation_reason, None);
+}
+
+#[test]
+fn test_cancel_active_proposal_with_reason() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    let reason = Some(String::from_str(&env, "Out of scope"));
+    gov.cancel(&admin, &id, &reason);
+    let updated = gov.get_proposal(&id);
+    assert_eq!(updated.state, ProposalState::Cancelled);
+    assert_eq!(updated.cancellation_reason, reason);
 }
 
 #[test]
@@ -505,6 +518,13 @@ fn test_get_proposals_by_state() {
     assert_eq!(active.get(0).unwrap().id, 0);
     assert_eq!(active.get(1).unwrap().id, 2);
     
+    gov.cancel(&admin, &id1, &None);
+
+    let active = gov.get_proposals_by_state(&ProposalState::Active, &0, &10);
+    assert_eq!(active.len(), 2);
+    assert_eq!(active.get(0).unwrap().id, 0);
+    assert_eq!(active.get(1).unwrap().id, 2);
+
     let cancelled = gov.get_proposals_by_state(&ProposalState::Cancelled, &0, &10);
     assert_eq!(cancelled.len(), 1);
     assert_eq!(cancelled.get(0).unwrap().id, 1);

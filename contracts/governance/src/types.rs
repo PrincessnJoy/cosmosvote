@@ -81,6 +81,7 @@ pub struct Proposal {
     pub proposer: Address,
     pub title: String,
     pub description: String,
+    pub cancellation_reason: Option<String>,
     pub votes_yes: i128,
     pub votes_no: i128,
     pub votes_abstain: i128,

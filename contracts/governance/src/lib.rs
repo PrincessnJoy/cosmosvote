@@ -182,6 +182,7 @@ impl GovernanceContract {
             proposer: proposer.clone(),
             title: title.clone(),
             description: description.clone(),
+            cancellation_reason: None,
             votes_yes: 0,
             votes_no: 0,
             votes_abstain: 0,
@@ -359,26 +360,13 @@ impl GovernanceContract {
         Ok(())
     }
 
-    /// Execute a passed proposal. Admin only.
-    pub fn execute(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError> {
-        admin.require_auth();
-        Self::assert_admin(&env, &admin)?;
-
-        let mut proposal = GovernanceStorage::proposal(&env, proposal_id)
-            .ok_or(ContractError::ProposalNotFound)?;
-
-        if proposal.state != ProposalState::Passed {
-            return Err(ContractError::ProposalNotPassed);
-        }
-
-        proposal.state = ProposalState::Executed;
-        GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
-        GovernanceEvents::proposal_executed(&env, proposal_id, &admin);
-        Ok(())
-    }
-
     /// Cancel an active proposal. Admin only.
-    pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError> {
+    pub fn cancel(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+        reason: Option<String>,
+    ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
@@ -390,8 +378,9 @@ impl GovernanceContract {
         }
 
         proposal.state = ProposalState::Cancelled;
+        proposal.cancellation_reason = reason.clone();
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
-        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin);
+        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin, &reason);
         Ok(())
     }
 

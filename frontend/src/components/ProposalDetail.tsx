@@ -63,6 +63,12 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
           </tbody>
         </table>
 
+        {p.cancellation_reason ? (
+          <div style={{ padding: '0.75rem', background: '#fef2f2', borderRadius: 8, marginBottom: '1rem', color: '#991b1b' }}>
+            <strong>Cancellation reason:</strong> {p.cancellation_reason}
+          </div>
+        ) : null}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
           {[
             { label: '✅ Yes', value: p.votes_yes, color: '#16a34a' },

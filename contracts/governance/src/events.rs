@@ -42,17 +42,15 @@ impl GovernanceEvents {
         );
     }
 
-    pub fn proposal_executed(env: &Env, proposal_id: u64, admin: &Address) {
-        env.events().publish(
-            (symbol_short!("gov"), symbol_short!("exec")),
-            (proposal_id, admin.clone()),
-        );
-    }
-
-    pub fn proposal_cancelled(env: &Env, proposal_id: u64, admin: &Address) {
+    pub fn proposal_cancelled(
+        env: &Env,
+        proposal_id: u64,
+        admin: &Address,
+        reason: &Option<String>,
+    ) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("cancel")),
-            (proposal_id, admin.clone()),
+            (proposal_id, admin.clone(), reason.clone()),
         );
     }
 
