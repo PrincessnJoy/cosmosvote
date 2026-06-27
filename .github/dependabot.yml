@@ -1,32 +1,41 @@
 version: 2
 updates:
-  # Rust / Cargo dependencies
-  - package-ecosystem: cargo
+  - package-ecosystem: "cargo"
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
-    labels:
-      - dependencies
-      - security
-    open-pull-requests-limit: 10
-
-  # Node.js / npm dependencies (frontend)
-  - package-ecosystem: npm
+      interval: "weekly"
+  - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
-      interval: weekly
-      day: monday
-    labels:
-      - dependencies
-      - security
-    open-pull-requests-limit: 10
-
-  # GitHub Actions
-  - package-ecosystem: github-actions
+      interval: "weekly"
+  - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
+      interval: "weekly"
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
       interval: weekly
-      day: monday
+    open-pull-requests-limit: 5
     labels:
       - dependencies
+      - rust
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - javascript
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - ci

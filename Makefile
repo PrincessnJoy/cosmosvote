@@ -27,6 +27,10 @@ test-token:
 test-prop:
 	cargo test prop_ --all --features testutils
 
+## Run integration tests only
+test-integration:
+	cargo test --test integration_tests --features testutils
+
 ## Format code
 fmt:
 	cargo fmt --all
@@ -64,5 +68,13 @@ wasm-size: build
 	@echo "=== WASM binary sizes ==="
 	@find target/wasm32-unknown-unknown/release -name "*.wasm" | xargs ls -lh 2>/dev/null || echo "No WASM files found"
 
+## Run mutation tests against governance contract (requires cargo-mutants)
+mutants:
+	cargo mutants -p cosmosvote-governance --features testutils
+
 ## Run all checks (CI equivalent)
 ci: fmt-check lint test build
+
+## Run mutation testing (requires cargo-mutants)
+mutants:
+	cargo mutants --package cosmosvote-governance --features testutils --output mutants-out -- --features testutils
