@@ -37,6 +37,8 @@ pub enum PersistentKey {
     VoteRecord(u64, Address),
     ProposalCount,
     LastProposal(Address),
+    /// Accumulated vote weight for choice `index` on multi-choice proposal `id`.
+    ChoiceVotes(u64, u32),
 }
 
 // ---------------------------------------------------------------------------

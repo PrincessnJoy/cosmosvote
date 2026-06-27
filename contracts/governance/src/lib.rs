@@ -580,8 +580,29 @@ impl GovernanceContract {
             .and_then(|v| v.checked_add(proposal.votes_abstain))
             .ok_or(ContractError::ArithmeticOverflow)?;
 
-        let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
-        proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        if !proposal.choices.is_empty() {
+            // Multi-choice: votes_yes holds total participation weight.
+            let total_participation = proposal.votes_yes;
+            if total_participation >= proposal.quorum {
+                // Find choice with maximum votes (first-past-the-post).
+                let mut best_index: u32 = 0;
+                let mut best_weight: i128 = GovernanceStorage::choice_votes(&env, proposal_id, 0);
+                for i in 1..proposal.choices.len() {
+                    let w = GovernanceStorage::choice_votes(&env, proposal_id, i);
+                    if w > best_weight {
+                        best_weight = w;
+                        best_index = i;
+                    }
+                }
+                proposal.winning_choice = Some(best_index);
+                proposal.state = ProposalState::Passed;
+            } else {
+                proposal.state = ProposalState::Rejected;
+            }
+        } else {
+            let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
+            proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        }
 
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         let active_count = GovernanceStorage::active_proposal_count(&env);
