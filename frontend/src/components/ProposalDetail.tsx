@@ -1,7 +1,7 @@
 import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useRef, useState } from 'react';
-import { formatTokenAmount } from '../utils';
+import { formatTokenAmount, maskAddress } from '../utils';
 import { explorerAccountUrl } from '../config';
 
 interface Props {
@@ -90,7 +90,8 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
   }, [onClose]);
 
   const total = p.votes_yes + p.votes_no + p.votes_abstain;
-  const shortAddress = `${p.proposer.slice(0, 8)}...${p.proposer.slice(-4)}`;
+  const shortAddress = maskAddress(p.proposer);
+  const [showFullProposer, setShowFullProposer] = useState(false);
 
   const showFinalize = walletAddress && p.state === 'Active' && expired;
   const showExecute = isAdmin && p.state === 'Passed';
@@ -134,15 +135,24 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
               {[
                 ['State', p.state],
                 ['Proposer', (
-                  <a
-                    href={explorerAccountUrl(p.proposer)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={p.proposer}
-                    style={{ color: '#2563eb', textDecoration: 'none' }}
-                  >
-                    {shortAddress}
-                  </a>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <a
+                      href={explorerAccountUrl(p.proposer)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={p.proposer}
+                      style={{ color: '#2563eb', textDecoration: 'none' }}
+                    >
+                      {showFullProposer ? p.proposer : shortAddress}
+                    </a>
+                    <button
+                      onClick={() => setShowFullProposer(s => !s)}
+                      aria-label={showFullProposer ? 'Hide full proposer address' : 'Reveal full proposer address'}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '0.75rem', padding: 0 }}
+                    >
+                      {showFullProposer ? '🙈' : '👁'}
+                    </button>
+                  </span>
                 )],
                 ['Start', formatDate(p.start_time)],
                 ['End', formatDate(p.end_time)],
