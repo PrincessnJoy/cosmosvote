@@ -1,6 +1,6 @@
 //! Token contract — on-chain event emission.
 
-use soroban_sdk::{symbol_short, Address, Env};
+use soroban_sdk::{symbol_short, Address, BytesN, Env};
 
 pub struct TokenEvents;
 

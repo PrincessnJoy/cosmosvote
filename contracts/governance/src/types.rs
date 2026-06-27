@@ -144,6 +144,9 @@ pub enum Vote {
     Yes,
     No,
     Abstain,
+    /// Cast a vote for a named choice in a multi-choice proposal.
+    /// `index` is the 0-based index into `Proposal.choices`.
+    Choice(u32),
 }
 
 #[contracttype]

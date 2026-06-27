@@ -17,6 +17,12 @@ services:
       stellar-node:
         condition: service_healthy
     command: bash
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://stellar-node:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   artifacts:
     build:

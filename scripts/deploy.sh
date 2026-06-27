@@ -30,9 +30,48 @@ check_required_env() {
 }
 
 CHECK_ENV_ONLY=false
-[[ "${1:-}" == "--check-env" ]] && CHECK_ENV_ONLY=true
+BRANCH_ARG=""
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --check-env)
+      CHECK_ENV_ONLY=true; shift ;;
+    --branch)
+      BRANCH_ARG="$2"; shift 2 ;;
+    --branch=*)
+      BRANCH_ARG="${1#*=}"; shift ;;
+    *)
+      shift ;;
+  esac
+done
 
 # ─── Load environment ────────────────────────────────────────────────────────
+# Branch-specific .env support:
+# - If --branch is provided or detected from git/GITHUB_REF, and a .env.<branch>
+#   file exists at the repo root, source it. This lets branches carry their
+#   own environment flags without changing deployed mainnet/testnet configs.
+if [[ -n "${BRANCH_ARG:-}" ]]; then
+  DETECTED_BRANCH="$BRANCH_ARG"
+elif [[ -n "${GITHUB_REF:-}" ]]; then
+  # GITHUB_REF can be refs/heads/<branch>
+  DETECTED_BRANCH="${GITHUB_REF##*/}"
+else
+  if git rev-parse --abbrev-ref HEAD >/dev/null 2>&1; then
+    DETECTED_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  else
+    DETECTED_BRANCH=""
+  fi
+fi
+
+if [[ -n "${DETECTED_BRANCH}" ]]; then
+  BR_ENV_FILE="$ROOT_DIR/.env.${DETECTED_BRANCH}"
+  if [[ -f "$BR_ENV_FILE" ]]; then
+    # shellcheck disable=SC1091
+    source "$BR_ENV_FILE"
+    log INFO "Loaded branch-specific env: .env.${DETECTED_BRANCH}"
+  fi
+fi
+
+# Fallback to default .env if present
 if [[ -f "$ROOT_DIR/.env" ]]; then
   # shellcheck disable=SC1091
   source "$ROOT_DIR/.env"
