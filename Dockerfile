@@ -35,4 +35,8 @@ COPY . .
 # Install cargo tools
 # RUN cargo install cargo-tarpaulin --locked
 
+# Health check: verify the container is alive and the Stellar RPC endpoint is reachable
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -fsS "${STELLAR_RPC_URL:-http://localhost:8000}/health" > /dev/null || exit 1
+
 CMD ["make", "test"]

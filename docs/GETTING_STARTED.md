@@ -83,3 +83,44 @@ npm run dev
 - Review the [Storage Model](./storage.md)
 - Check the [Error Reference](./errors.md)
 - Browse [Architecture Decision Records](./adr/)
+
+---
+
+## Container Health Checks
+
+All services in `docker-compose.yml` expose health status for orchestration tools (Docker Swarm, Kubernetes, etc.).
+
+### stellar-node
+
+| Property | Value |
+|----------|-------|
+| Endpoint | `http://localhost:8000/health` |
+| Interval | 15 s |
+| Timeout | 10 s |
+| Start period | 30 s (node needs time to initialize) |
+| Retries | 5 |
+
+The Stellar quickstart node exposes `/health` on its RPC port. The `dev` service waits for `stellar-node` to be **healthy** before starting (`depends_on: condition: service_healthy`).
+
+### dev (build/test container)
+
+| Property | Value |
+|----------|-------|
+| Endpoint | `http://stellar-node:8000/health` |
+| Interval | 30 s |
+| Timeout | 10 s |
+| Start period | 15 s |
+| Retries | 3 |
+
+The `dev` container checks that the upstream RPC node is reachable. This ensures CI pipelines and orchestrators can detect when the build container has lost connectivity to its dependency.
+
+### Dockerfile HEALTHCHECK
+
+The `Dockerfile` also embeds a `HEALTHCHECK` instruction so that images built from it are health-aware when run standalone (outside compose):
+
+```dockerfile
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -fsS "${STELLAR_RPC_URL:-http://localhost:8000}/health" > /dev/null || exit 1
+```
+
+The `STELLAR_RPC_URL` environment variable controls which endpoint is polled; it defaults to `http://localhost:8000/health` when not set.
