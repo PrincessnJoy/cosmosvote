@@ -143,24 +143,77 @@ sequenceDiagram
 
 Matrix build status is tracked in the [Matrix Tests workflow](.github/workflows/matrix.yml).
 
-### Installation & Testing
+### 1. Clone & Configure
 
 ```bash
-# Clone the repository
 git clone https://github.com/PrincessnJoy/cosmosvote.git
 cd cosmosvote
 
-# Add WASM target
+# Copy and edit root config
+cp .env.example .env
+# Set NETWORK, STELLAR_SECRET_KEY, GOVERNANCE_CONTRACT_ID, TOKEN_CONTRACT_ID
+```
+
+### 2. Contracts
+
+```bash
+# Add WASM compilation target
 rustup target add wasm32-unknown-unknown
 
-# Run tests
+# Run all tests
 make test
 
 # Build WASM binaries
 make build
 
-# View documentation
+# (Optional) View generated docs
 cargo doc --no-deps --open
+```
+
+### 3. Frontend
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Copy and edit frontend config
+cp .env.example .env
+# Set VITE_GOVERNANCE_CONTRACT_ID, VITE_TOKEN_CONTRACT_ID, VITE_NETWORK
+
+# Start development server (http://localhost:5173)
+npm run dev
+
+# Build for production
+npm run build
+npm run preview
+```
+
+### 4. Notification Service
+
+> **Note:** A dedicated notification service is planned. In the meantime, operators can receive on-chain event notifications via webhooks using the Stellar Horizon event stream.
+
+```bash
+# Subscribe to contract events via Stellar CLI
+stellar events --network testnet \
+  --contract-id $GOVERNANCE_CONTRACT_ID \
+  --start-ledger <DEPLOY_LEDGER>
+```
+
+For automated alerts, configure a webhook listener against the Horizon `/accounts/{id}/payments` or Soroban event endpoint and forward events to Slack, Discord, or email.
+
+### 5. Local Development with Docker
+
+```bash
+# Start all services (local Stellar node + dev container)
+docker compose up
+
+# Run tests inside the container
+docker compose run --rm dev make test
+
+# Build inside the container
+docker compose run --rm dev make build
 ```
 
 ---
