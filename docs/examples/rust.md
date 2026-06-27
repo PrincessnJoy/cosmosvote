@@ -89,8 +89,9 @@ GovernanceContract::cancel(env, admin.clone(), proposal_id, None)?;
 // Transfer tokens
 TokenContract::transfer(env, from.clone(), to.clone(), 1_000_000)?;
 
-// Approve allowance
-TokenContract::approve(env, owner.clone(), spender.clone(), 5_000_000)?;
+// Approve allowance with expiry ledger
+let expiry_ledger = env.ledger().sequence() + 10;
+TokenContract::approve(env, owner.clone(), spender.clone(), 5_000_000, expiry_ledger)?;
 
 // Transfer from allowance
 TokenContract::transfer_from(env, spender.clone(), owner.clone(), recipient.clone(), 2_000_000)?;
