@@ -584,6 +584,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). Quick checklist:
 - [Architecture Decision Records](./docs/adr/)
 - [Security Documentation](./docs/security/)
 - [Notification Service](./docs/notification-service.md)
+- [Gas Budgeting Guide](./docs/gas-budgeting.md)
 
 ---
 
