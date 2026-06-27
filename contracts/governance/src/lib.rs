@@ -660,6 +660,16 @@ impl GovernanceContract {
         Ok(())
     }
 
+    /// Upgrade the governance contract code. Admin only.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        GovernanceEvents::upgraded(&env, &new_wasm_hash);
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Admin operations
     // -----------------------------------------------------------------------

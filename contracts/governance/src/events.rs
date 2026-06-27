@@ -61,6 +61,13 @@ impl GovernanceEvents {
         );
     }
 
+    pub fn upgraded(env: &Env, new_wasm_hash: &BytesN<32>) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("upgraded")),
+            (new_wasm_hash.clone(),),
+        );
+    }
+
     pub fn quorum_updated(env: &Env, proposal_id: u64, old_quorum: i128, new_quorum: i128) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("quorum")),
