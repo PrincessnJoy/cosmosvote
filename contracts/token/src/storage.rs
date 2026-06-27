@@ -13,6 +13,7 @@ pub enum InstanceKey {
     Name,
     Symbol,
     Decimals,
+    Paused,
 }
 
 #[soroban_sdk::contracttype]
@@ -114,17 +115,34 @@ impl TokenStorage {
         env.storage().instance().set(&InstanceKey::Decimals, &v);
     }
 
+    pub fn paused(env: &Env) -> bool {
+        env.storage().instance().get(&InstanceKey::Paused).unwrap_or(false)
+    }
+    pub fn set_paused(env: &Env, v: bool) {
+        env.storage().instance().set(&InstanceKey::Paused, &v);
+    }
+
     pub fn balance(env: &Env, owner: &Address) -> i128 {
         let key = PersistentKey::Balance(owner.clone());
-        let v = env.storage().persistent().get(&key).unwrap_or(0);
-        // bump TTL on read
-        Self::bump_persistent_ttl(env, &key);
-        v
+        if let Some(v) = env.storage().persistent().get(&key) {
+            // bump TTL on read
+            Self::bump_persistent_ttl(env, &key);
+            v
+        } else {
+            0
+        }
     }
     pub fn set_balance(env: &Env, owner: &Address, v: i128) {
         let key = PersistentKey::Balance(owner.clone());
         env.storage().persistent().set(&key, &v);
         Self::bump_persistent_ttl(env, &key);
+    }
+
+    pub fn is_paused(env: &Env) -> bool {
+        env.storage().instance().get(&InstanceKey::Paused).unwrap_or(false)
+    }
+    pub fn set_paused(env: &Env, v: bool) {
+        env.storage().instance().set(&InstanceKey::Paused, &v);
     }
 
     pub fn allowance(env: &Env, owner: &Address, spender: &Address) -> i128 {
@@ -139,7 +157,7 @@ impl TokenStorage {
         spender: &Address,
     ) -> Option<Allowance> {
         let key = TempKey::Allowance(owner.clone(), spender.clone());
-        if let Some(data) = env.storage().temporary().get(&key) {
+        if let Some(data) = env.storage().temporary().get::<TempKey, Allowance>(&key) {
             let current_ledger = env.ledger().sequence();
             if current_ledger > data.expiry_ledger || data.amount <= 0 {
                 return None;

@@ -1,7 +1,7 @@
 import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useRef, useState } from 'react';
-import { formatTokenAmount } from '../utils';
+import { formatTokenAmount, maskAddress } from '../utils';
 import { explorerAccountUrl } from '../config';
 
 interface Props {
@@ -90,7 +90,8 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
   }, [onClose]);
 
   const total = p.votes_yes + p.votes_no + p.votes_abstain;
-  const shortAddress = `${p.proposer.slice(0, 8)}...${p.proposer.slice(-4)}`;
+  const shortAddress = maskAddress(p.proposer);
+  const [showFullProposer, setShowFullProposer] = useState(false);
 
   const showFinalize = walletAddress && p.state === 'Active' && expired;
   const showExecute = isAdmin && p.state === 'Passed';
@@ -133,54 +134,38 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose, 
             <tbody>
               {[
                 ['State', p.state],
-                ['Proposer', `${p.proposer.slice(0, 8)}...${p.proposer.slice(-4)}`],
+                ['Proposer', (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <a
+                      href={explorerAccountUrl(p.proposer)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={p.proposer}
+                      style={{ color: '#2563eb', textDecoration: 'none' }}
+                    >
+                      {showFullProposer ? p.proposer : shortAddress}
+                    </a>
+                    <button
+                      onClick={() => setShowFullProposer(s => !s)}
+                      aria-label={showFullProposer ? 'Hide full proposer address' : 'Reveal full proposer address'}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', fontSize: '0.75rem', padding: 0 }}
+                    >
+                      {showFullProposer ? '🙈' : '👁'}
+                    </button>
+                  </span>
+                )],
                 ['Start', formatDate(p.start_time)],
                 ['End', formatDate(p.end_time)],
                 ['Quorum', formatTokenAmount(p.quorum, decimals)],
                 ['Total Votes', formatTokenAmount(total, decimals)],
               ].map(([k, v]) => (
-                <tr key={k} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <tr key={String(k)} style={{ borderBottom: '1px solid #e5e7eb' }}>
                   <td style={{ padding: '0.4rem 0', color: '#888', width: '40%' }}>{k}</td>
                   <td style={{ padding: '0.4rem 0', fontWeight: 500 }}>{v}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
-            {[
-              ['State', p.state],
-              ['Proposer', (
-                <a
-                  href={explorerAccountUrl(p.proposer)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={p.proposer}
-                  style={{ color: '#2563eb', textDecoration: 'none' }}
-                >
-                  {shortAddress}
-                </a>
-              )],
-              ['Start', formatDate(p.start_time)],
-              ['End', formatDate(p.end_time)],
-              ['Quorum', formatTokenAmount(p.quorum, decimals)],
-              ['Total Votes', formatTokenAmount(total, decimals)],
-            ].map(([k, v]) => (
-              <tr key={String(k)} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '0.4rem 0', color: '#888', width: '40%' }}>{k}</td>
-                <td style={{ padding: '0.4rem 0', fontWeight: 500 }}>{v}</td>
-              </tr>
-            ))}
-          </div>
-
-          {walletAddress && (
-            <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem' }}>
-              {hasVoted === null ? 'Checking vote status...' :
-                hasVoted && voteRecord
-                  ? `You voted ${voteRecord.vote} with weight ${formatTokenAmount(voteRecord.weight, decimals)}`
-                  : 'You have not voted on this proposal'}
-            </div>
-          )}
 
         {walletAddress && (
           <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem', marginBottom: '1rem' }}>

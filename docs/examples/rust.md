@@ -76,8 +76,11 @@ GovernanceContract::update_quorum(env, admin.clone(), proposal_id, 3_000_000)?;
 // Transfer admin
 GovernanceContract::transfer_admin(env, admin.clone(), new_admin.clone())?;
 
-// Cancel active proposal
-GovernanceContract::cancel(env, admin.clone(), proposal_id)?;
+// Cancel active proposal with reason
+GovernanceContract::cancel(env, admin.clone(), proposal_id, Some(String::from_str(env, "Bug is not relevant")))?;
+
+// Cancel active proposal without a reason
+GovernanceContract::cancel(env, admin.clone(), proposal_id, None)?;
 ```
 
 ## Token Operations

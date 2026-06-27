@@ -61,6 +61,13 @@ impl GovernanceEvents {
         );
     }
 
+    pub fn upgraded(env: &Env, new_wasm_hash: &BytesN<32>) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("upgraded")),
+            (new_wasm_hash.clone(),),
+        );
+    }
+
     pub fn quorum_updated(env: &Env, proposal_id: u64, old_quorum: i128, new_quorum: i128) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("quorum")),
@@ -100,6 +107,13 @@ impl GovernanceEvents {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("accept")),
             (previous_admin.clone(), new_admin.clone()),
+        );
+    }
+
+    pub fn admin_transfer_cancelled(env: &Env, admin: &Address, cancelled_pending: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("adm_cncl")),
+            (admin.clone(), cancelled_pending.clone()),
         );
     }
 
@@ -143,6 +157,13 @@ impl GovernanceEvents {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("token")),
             (old_token.clone(), new_token.clone()),
+        );
+    }
+
+    pub fn contract_upgraded(env: &Env, new_wasm_hash: &BytesN<32>) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("upgrade")),
+            new_wasm_hash.clone(),
         );
     }
 }

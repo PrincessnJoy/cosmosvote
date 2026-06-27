@@ -2,10 +2,32 @@
 //!
 //! * Instance storage  — contract-wide config (cheap, loaded once per call)
 //! * Persistent storage — per-proposal / per-voter data (survives ledger expiry)
+//!
+//! ## Storage TTL assumptions
+//!
+//! Soroban persistent storage entries expire after their TTL (time-to-live) elapses
+//! without a bump. We extend the TTL on every write to keep proposal and vote data
+//! alive for the full expected proposal lifecycle plus a safety buffer:
+//!
+//! * `PROPOSAL_TTL_LEDGERS` — ~30 days at 5 s/ledger = 518 400 ledgers.
+//!   Covers the maximum voting duration (2 592 000 s) plus buffer.
+//! * `VOTE_TTL_LEDGERS` — same window; vote records must outlive their proposal.
+//! * `COOLDOWN_TTL_LEDGERS` — ~7 days; only needs to cover the cooldown period.
 
 use soroban_sdk::{Address, Env};
 
 use crate::types::{ContractState, Proposal, ProposalState, VoteRecord};
+
+// ---------------------------------------------------------------------------
+// TTL constants (in ledgers, assuming ~5 s/ledger)
+// ---------------------------------------------------------------------------
+
+/// ~30 days. Covers max voting duration (2 592 000 s) with buffer.
+const PROPOSAL_TTL_LEDGERS: u32 = 518_400;
+/// Same as proposal TTL — vote records must outlive the proposal.
+const VOTE_TTL_LEDGERS: u32 = 518_400;
+/// ~7 days — sufficient to cover any cooldown period.
+const COOLDOWN_TTL_LEDGERS: u32 = 120_960;
 
 // ---------------------------------------------------------------------------
 // Storage keys
@@ -37,6 +59,8 @@ pub enum PersistentKey {
     VoteRecord(u64, Address),
     ProposalCount,
     LastProposal(Address),
+    /// Accumulated vote weight for choice `index` on multi-choice proposal `id`.
+    ChoiceVotes(u64, u32),
 }
 
 // ---------------------------------------------------------------------------
@@ -217,19 +241,6 @@ impl GovernanceStorage {
     }
 
     // Proposal count persisted to persistent storage to avoid instance write contention
-    pub fn proposal_count(env: &Env) -> u64 {
-        let key = PersistentKey::ProposalCount;
-        let v = env.storage().persistent().get(&key).unwrap_or(0u64);
-        // bump TTL on read
-        Self::bump_persistent_ttl(env, &key);
-        v
-    }
-    pub fn set_proposal_count(env: &Env, v: u64) {
-        let key = PersistentKey::ProposalCount;
-        env.storage().persistent().set(&key, &v);
-        Self::bump_persistent_ttl(env, &key);
-    }
-
     /// Convenience: check if a proposal is in a terminal state.
     pub fn is_terminal(state: &ProposalState) -> bool {
         matches!(

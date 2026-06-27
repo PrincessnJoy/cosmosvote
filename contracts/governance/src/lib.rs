@@ -19,6 +19,10 @@ mod test_helpers;
 mod prop_tests;
 #[cfg(test)]
 mod benchmarks;
+#[cfg(test)]
+mod event_tests;
+#[cfg(test)]
+mod cross_contract_tests;
 
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
@@ -141,6 +145,7 @@ impl GovernanceContract {
         description: String,
         quorum: i128,
         duration: u64,
+        link: Option<String>,
         treasury_action: Option<TreasuryAction>,
     ) -> Result<u64, ContractError> {
         proposer.require_auth();
@@ -229,7 +234,11 @@ impl GovernanceContract {
             end_time: now + duration,
             state: ProposalState::Active,
             snapshot_ledger,
-            treasury_action,
+            voter_count: 0,
+            treasury_action: match treasury_action {
+                Some(a) => Vec::from_array(&env, [a]),
+                None => Vec::new(&env),
+            },
         };
 
         GovernanceStorage::set_proposal(&env, id, &proposal);
@@ -380,10 +389,13 @@ impl GovernanceContract {
             return Err(ContractError::AlreadyVoted);
         }
 
-        // Admin vote restriction
+        // Admin vote restriction: when enabled, prevent the admin from voting
+        // on proposals that *they created* but allow the admin to vote on
+        // proposals created by others. This avoids absolute admin lockout
+        // while still preventing self-voting on owned proposals.
         if GovernanceStorage::restrict_admin_vote(&env) {
             let admin = GovernanceStorage::admin(&env);
-            if voter == admin {
+            if voter == admin && proposal.proposer == admin {
                 return Err(ContractError::AdminVoteRestricted);
             }
         }
@@ -568,8 +580,29 @@ impl GovernanceContract {
             .and_then(|v| v.checked_add(proposal.votes_abstain))
             .ok_or(ContractError::ArithmeticOverflow)?;
 
-        let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
-        proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        if !proposal.choices.is_empty() {
+            // Multi-choice: votes_yes holds total participation weight.
+            let total_participation = proposal.votes_yes;
+            if total_participation >= proposal.quorum {
+                // Find choice with maximum votes (first-past-the-post).
+                let mut best_index: u32 = 0;
+                let mut best_weight: i128 = GovernanceStorage::choice_votes(&env, proposal_id, 0);
+                for i in 1..proposal.choices.len() {
+                    let w = GovernanceStorage::choice_votes(&env, proposal_id, i);
+                    if w > best_weight {
+                        best_weight = w;
+                        best_index = i;
+                    }
+                }
+                proposal.winning_choice = Some(best_index);
+                proposal.state = ProposalState::Passed;
+            } else {
+                proposal.state = ProposalState::Rejected;
+            }
+        } else {
+            let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
+            proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        }
 
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         let active_count = GovernanceStorage::active_proposal_count(&env);
@@ -593,7 +626,7 @@ impl GovernanceContract {
         }
 
         // Invoke treasury disbursement if a payload is attached
-        if let Some(action) = proposal.treasury_action.clone() {
+        if let Some(action) = proposal.treasury_action.get(0) {
             if let Some(treasury_addr) = GovernanceStorage::treasury_contract(&env) {
                 let treasury = TreasuryClient::new(&env, &treasury_addr);
                 treasury.disburse(&action);
@@ -607,7 +640,12 @@ impl GovernanceContract {
     }
 
     /// Cancel an active proposal. Admin only.
-    pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError> {
+    pub fn cancel(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+        reason: Option<String>,
+    ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
@@ -619,12 +657,13 @@ impl GovernanceContract {
         }
 
         proposal.state = ProposalState::Cancelled;
+        proposal.cancellation_reason = reason.clone();
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         let active_count = GovernanceStorage::active_proposal_count(&env);
         if active_count > 0 {
             GovernanceStorage::set_active_proposal_count(&env, active_count - 1);
         }
-        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin);
+        GovernanceEvents::proposal_cancelled(&env, proposal_id, &admin, proposal.voter_count);
         Ok(())
     }
 
@@ -639,6 +678,16 @@ impl GovernanceContract {
 
         env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
         GovernanceEvents::contract_upgraded(&env, &new_wasm_hash);
+        Ok(())
+    }
+
+    /// Upgrade the governance contract code. Admin only.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        GovernanceEvents::upgraded(&env, &new_wasm_hash);
         Ok(())
     }
 
@@ -703,7 +752,6 @@ impl GovernanceContract {
         // GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF is the strkey
         // encoding of a 32-byte zeroed public key — no valid keypair can sign for it.
         let zero_addr = Address::from_string(
-            &env,
             &soroban_sdk::String::from_str(
                 &env,
                 "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
@@ -754,6 +802,20 @@ impl GovernanceContract {
         GovernanceStorage::set_admin(&env, &pending_admin);
         GovernanceStorage::set_pending_admin(&env, None);
         GovernanceEvents::admin_transfer_accepted(&env, &previous_admin, &pending_admin);
+        Ok(())
+    }
+
+    /// Cancel a pending admin transfer. Admin only.
+    /// Clears the pending admin without transferring privileges.
+    pub fn cancel_admin_transfer(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        let pending = GovernanceStorage::pending_admin(&env)
+            .ok_or(ContractError::NoPendingAdmin)?;
+
+        GovernanceStorage::set_pending_admin(&env, None);
+        GovernanceEvents::admin_transfer_cancelled(&env, &admin, &pending);
         Ok(())
     }
 

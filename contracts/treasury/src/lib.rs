@@ -76,9 +76,10 @@ impl TreasuryContract {
             }
             Asset::Token(token_addr) => {
                 let client = token_interface::TokenClient::new(&env, &token_addr);
-                client.transfer(env.current_contract_address(), action.recipient, action.amount);
+                client.transfer(&env.current_contract_address(), &action.recipient, &action.amount);
             }
         }
+
 
         env.events().publish(
             (soroban_sdk::symbol_short!("disburse"),),

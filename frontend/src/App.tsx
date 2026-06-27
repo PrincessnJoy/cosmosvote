@@ -6,7 +6,7 @@ import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
 import { useToast } from './components/ToastContext';
 import { ACTIVE_NETWORK } from './config';
-import { formatTokenAmount } from './utils';
+import { formatTokenAmount, maskAddress } from './utils';
 import './responsive.css';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
@@ -34,6 +34,7 @@ export default function App() {
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
   const [rpcWarning, setRpcWarning] = useState<string | null>(null);
+  const [showFullAddress, setShowFullAddress] = useState(false);
 
   const connect = () => {
     const addr = prompt('Enter your Stellar address (G...):');
@@ -41,6 +42,13 @@ export default function App() {
   };
 
   const disconnect = () => setWalletAddress(null);
+
+  useMeta(
+    selected ? selected.title : 'Proposals',
+    selected
+      ? `${selected.title} — ${selected.description.slice(0, 120)}`
+      : 'Browse and vote on on-chain governance proposals for CosmosVote on Stellar Soroban.'
+  );
 
   useEffect(() => {
     if (!walletAddress) { setTokenBalance(null); return; }
@@ -120,7 +128,17 @@ export default function App() {
           </button>
           {walletAddress ? (
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-header-sub)' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
+              <div
+                style={{ fontSize: '0.75rem', color: 'var(--text-header-sub)', cursor: 'pointer', userSelect: 'none' }}
+                title={showFullAddress ? 'Click to hide address' : walletAddress}
+                onClick={() => setShowFullAddress(s => !s)}
+                aria-label={showFullAddress ? 'Click to hide full address' : 'Click to reveal full address'}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && setShowFullAddress(s => !s)}
+              >
+                {showFullAddress ? walletAddress : maskAddress(walletAddress)}
+              </div>
               {tokenBalance !== null && (
                 <div className={styles.headerBalance}>{formatTokenAmount(tokenBalance, decimals)}</div>
               )}
@@ -206,7 +224,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={(e) => {
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={(e) => {
               triggerRef.current = e?.currentTarget as HTMLElement ?? null;
               setSelected(p);
             }} />
