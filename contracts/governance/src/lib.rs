@@ -22,7 +22,7 @@ mod benchmarks;
 #[cfg(test)]
 mod event_tests;
 #[cfg(test)]
-mod quorum_tests;
+mod cross_contract_tests;
 
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
@@ -580,8 +580,29 @@ impl GovernanceContract {
             .and_then(|v| v.checked_add(proposal.votes_abstain))
             .ok_or(ContractError::ArithmeticOverflow)?;
 
-        let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
-        proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        if !proposal.choices.is_empty() {
+            // Multi-choice: votes_yes holds total participation weight.
+            let total_participation = proposal.votes_yes;
+            if total_participation >= proposal.quorum {
+                // Find choice with maximum votes (first-past-the-post).
+                let mut best_index: u32 = 0;
+                let mut best_weight: i128 = GovernanceStorage::choice_votes(&env, proposal_id, 0);
+                for i in 1..proposal.choices.len() {
+                    let w = GovernanceStorage::choice_votes(&env, proposal_id, i);
+                    if w > best_weight {
+                        best_weight = w;
+                        best_index = i;
+                    }
+                }
+                proposal.winning_choice = Some(best_index);
+                proposal.state = ProposalState::Passed;
+            } else {
+                proposal.state = ProposalState::Rejected;
+            }
+        } else {
+            let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
+            proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        }
 
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         let active_count = GovernanceStorage::active_proposal_count(&env);
@@ -619,7 +640,12 @@ impl GovernanceContract {
     }
 
     /// Cancel an active proposal. Admin only.
-    pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError> {
+    pub fn cancel(
+        env: Env,
+        admin: Address,
+        proposal_id: u64,
+        reason: Option<String>,
+    ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
@@ -631,6 +657,7 @@ impl GovernanceContract {
         }
 
         proposal.state = ProposalState::Cancelled;
+        proposal.cancellation_reason = reason.clone();
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         let active_count = GovernanceStorage::active_proposal_count(&env);
         if active_count > 0 {
@@ -651,6 +678,16 @@ impl GovernanceContract {
 
         env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
         GovernanceEvents::contract_upgraded(&env, &new_wasm_hash);
+        Ok(())
+    }
+
+    /// Upgrade the governance contract code. Admin only.
+    pub fn upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        env.deployer().update_current_contract_wasm(new_wasm_hash.clone());
+        GovernanceEvents::upgraded(&env, &new_wasm_hash);
         Ok(())
     }
 
@@ -765,6 +802,20 @@ impl GovernanceContract {
         GovernanceStorage::set_admin(&env, &pending_admin);
         GovernanceStorage::set_pending_admin(&env, None);
         GovernanceEvents::admin_transfer_accepted(&env, &previous_admin, &pending_admin);
+        Ok(())
+    }
+
+    /// Cancel a pending admin transfer. Admin only.
+    /// Clears the pending admin without transferring privileges.
+    pub fn cancel_admin_transfer(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        let pending = GovernanceStorage::pending_admin(&env)
+            .ok_or(ContractError::NoPendingAdmin)?;
+
+        GovernanceStorage::set_pending_admin(&env, None);
+        GovernanceEvents::admin_transfer_cancelled(&env, &admin, &pending);
         Ok(())
     }
 

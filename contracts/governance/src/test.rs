@@ -756,9 +756,22 @@ fn test_cancel_active_proposal() {
     let env = Env::default();
     let (gov, _, admin, voter, _) = setup(&env);
     let id = make_proposal(&gov, &env, &voter);
-    gov.cancel(&admin, &id);
+    gov.cancel(&admin, &id, &None);
     let updated = gov.get_proposal(&id);
     assert_eq!(updated.state, ProposalState::Cancelled);
+    assert_eq!(updated.cancellation_reason, None);
+}
+
+#[test]
+fn test_cancel_active_proposal_with_reason() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+    let id = make_proposal(&gov, &env, &voter);
+    let reason = Some(String::from_str(&env, "Out of scope"));
+    gov.cancel(&admin, &id, &reason);
+    let updated = gov.get_proposal(&id);
+    assert_eq!(updated.state, ProposalState::Cancelled);
+    assert_eq!(updated.cancellation_reason, reason);
 }
 
 #[test]
@@ -893,6 +906,41 @@ fn test_propose_admin_zero_address_fails() {
     );
     let result = gov.try_propose_admin(&admin, &zero_addr);
     assert_eq!(result, Err(Ok(ContractError::InvalidNewAdmin)));
+}
+
+#[test]
+fn test_cancel_admin_transfer_clears_pending() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+
+    gov.propose_admin(&admin, &voter);
+    assert_eq!(gov.pending_admin(), Some(voter.clone()));
+
+    gov.cancel_admin_transfer(&admin);
+    assert_eq!(gov.pending_admin(), None);
+    // Admin is unchanged
+    assert_eq!(gov.admin(), admin);
+}
+
+#[test]
+fn test_cancel_admin_transfer_non_admin_fails() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+
+    gov.propose_admin(&admin, &voter);
+
+    let result = gov.try_cancel_admin_transfer(&voter);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
+fn test_cancel_admin_transfer_no_pending_fails() {
+    let env = Env::default();
+    let (gov, _, admin, _, _) = setup(&env);
+
+    // No pending admin set — should fail
+    let result = gov.try_cancel_admin_transfer(&admin);
+    assert_eq!(result, Err(Ok(ContractError::NoPendingAdmin)));
 }
 
 #[test]
@@ -1234,6 +1282,13 @@ fn test_get_proposals_by_state() {
     assert_eq!(active.get(0).unwrap().id, 0);
     assert_eq!(active.get(1).unwrap().id, 2);
     
+    gov.cancel(&admin, &id1, &None);
+
+    let active = gov.get_proposals_by_state(&ProposalState::Active, &0, &10);
+    assert_eq!(active.len(), 2);
+    assert_eq!(active.get(0).unwrap().id, 0);
+    assert_eq!(active.get(1).unwrap().id, 2);
+
     let cancelled = gov.get_proposals_by_state(&ProposalState::Cancelled, &0, &10);
     assert_eq!(cancelled.len(), 1);
     assert_eq!(cancelled.get(0).unwrap().id, 1); // .
@@ -1592,4 +1647,140 @@ fn test_active_proposal_limit() {
         &None,
     );
     assert_eq!(result, Err(Ok(ContractError::ProposalsStillActive)));
+}
+
+// ---------------------------------------------------------------------------
+// Multi-choice proposal tests (#298)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_multi_choice_proposal_passes_with_winner() {
+    let env = Env::default();
+    let (gov, token, admin, voter, voter2) = setup(&env);
+    let voter3 = Address::generate(&env);
+    token.mint(&admin, &voter3, &2_000_000i128);
+
+    let mut choices = soroban_sdk::Vec::new(&env);
+    choices.push_back(String::from_str(&env, "Option A"));
+    choices.push_back(String::from_str(&env, "Option B"));
+    choices.push_back(String::from_str(&env, "Option C"));
+
+    let id = gov.create_multi_choice_proposal(
+        &voter,
+        &String::from_str(&env, "Multi Choice Test"),
+        &String::from_str(&env, "Choose between three options"),
+        &5_000_000i128,
+        &604_800u64,
+        &choices,
+    );
+
+    // voter votes Choice(0), voter2 votes Choice(1), voter3 votes Choice(1)
+    gov.cast_vote(&voter, &id, &Vote::Choice(0));
+    gov.cast_vote(&voter2, &id, &Vote::Choice(1));
+    gov.cast_vote(&voter3, &id, &Vote::Choice(1));
+
+    let proposal = gov.get_proposal(&id);
+    // Advance past end time
+    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    gov.finalise(&id);
+
+    let finalized = gov.get_proposal(&id);
+    assert_eq!(finalized.state, ProposalState::Passed);
+    // Choice(1) has 7_000_000 weight vs Choice(0) 10_000_000 — wait, voter=10M
+    // voter(10M)->Choice(0), voter2(5M)->Choice(1), voter3(2M)->Choice(1)
+    // Choice(0)=10M, Choice(1)=7M → winner is index 0
+    assert_eq!(finalized.winning_choice, Some(0u32));
+    assert_eq!(gov.get_choice_votes(&id, &0u32), 10_000_000i128);
+    assert_eq!(gov.get_choice_votes(&id, &1u32), 7_000_000i128);
+    assert_eq!(gov.get_choice_votes(&id, &2u32), 0i128);
+}
+
+#[test]
+fn test_multi_choice_proposal_rejected_below_quorum() {
+    let env = Env::default();
+    let (gov, _token, _admin, voter, _voter2) = setup(&env);
+
+    let mut choices = soroban_sdk::Vec::new(&env);
+    choices.push_back(String::from_str(&env, "Yes"));
+    choices.push_back(String::from_str(&env, "No"));
+
+    let id = gov.create_multi_choice_proposal(
+        &voter,
+        &String::from_str(&env, "Quorum Test"),
+        &String::from_str(&env, "This will not meet quorum"),
+        &50_000_000i128, // high quorum
+        &604_800u64,
+        &choices,
+    );
+
+    gov.cast_vote(&voter, &id, &Vote::Choice(0));
+
+    let proposal = gov.get_proposal(&id);
+    env.ledger().with_mut(|l| l.timestamp = proposal.end_time + 1);
+    gov.finalise(&id);
+
+    assert_eq!(gov.get_proposal(&id).state, ProposalState::Rejected);
+}
+
+#[test]
+fn test_multi_choice_rejects_yes_no_abstain_vote() {
+    let env = Env::default();
+    let (gov, _token, _admin, voter, _voter2) = setup(&env);
+
+    let mut choices = soroban_sdk::Vec::new(&env);
+    choices.push_back(String::from_str(&env, "A"));
+    choices.push_back(String::from_str(&env, "B"));
+
+    let id = gov.create_multi_choice_proposal(
+        &voter,
+        &String::from_str(&env, "Test"),
+        &String::from_str(&env, "Multi choice proposal"),
+        &1_000_000i128,
+        &604_800u64,
+        &choices,
+    );
+
+    let err = gov.try_cast_vote(&voter, &id, &Vote::Yes).unwrap_err().unwrap();
+    assert_eq!(err, ContractError::InvalidChoice);
+}
+
+#[test]
+fn test_multi_choice_rejects_out_of_bounds_index() {
+    let env = Env::default();
+    let (gov, _token, _admin, voter, _voter2) = setup(&env);
+
+    let mut choices = soroban_sdk::Vec::new(&env);
+    choices.push_back(String::from_str(&env, "A"));
+    choices.push_back(String::from_str(&env, "B"));
+
+    let id = gov.create_multi_choice_proposal(
+        &voter,
+        &String::from_str(&env, "Test"),
+        &String::from_str(&env, "Test"),
+        &1_000_000i128,
+        &604_800u64,
+        &choices,
+    );
+
+    let err = gov.try_cast_vote(&voter, &id, &Vote::Choice(5)).unwrap_err().unwrap();
+    assert_eq!(err, ContractError::InvalidChoice);
+}
+
+#[test]
+fn test_multi_choice_create_requires_at_least_two_choices() {
+    let env = Env::default();
+    let (gov, _token, _admin, voter, _voter2) = setup(&env);
+
+    let mut one_choice = soroban_sdk::Vec::new(&env);
+    one_choice.push_back(String::from_str(&env, "Only"));
+
+    let err = gov.try_create_multi_choice_proposal(
+        &voter,
+        &String::from_str(&env, "Test"),
+        &String::from_str(&env, "Test"),
+        &1_000_000i128,
+        &604_800u64,
+        &one_choice,
+    ).unwrap_err().unwrap();
+    assert_eq!(err, ContractError::InvalidChoice);
 }
