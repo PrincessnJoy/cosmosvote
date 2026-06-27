@@ -768,6 +768,20 @@ impl GovernanceContract {
         Ok(())
     }
 
+    /// Cancel a pending admin transfer. Admin only.
+    /// Clears the pending admin without transferring privileges.
+    pub fn cancel_admin_transfer(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        let pending = GovernanceStorage::pending_admin(&env)
+            .ok_or(ContractError::NoPendingAdmin)?;
+
+        GovernanceStorage::set_pending_admin(&env, None);
+        GovernanceEvents::admin_transfer_cancelled(&env, &admin, &pending);
+        Ok(())
+    }
+
     /// Pause all state-changing operations. Admin only.
     pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
         admin.require_auth();
