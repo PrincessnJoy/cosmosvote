@@ -34,6 +34,8 @@ pub enum PersistentKey {
     HasVoted(u64, Address),
     VoteRecord(u64, Address),
     LastProposal(Address),
+    /// Accumulated vote weight for choice `index` on multi-choice proposal `id`.
+    ChoiceVotes(u64, u32),
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +171,18 @@ impl GovernanceStorage {
         env.storage()
             .persistent()
             .set(&PersistentKey::LastProposal(proposer.clone()), &v);
+    }
+
+    pub fn choice_votes(env: &Env, proposal_id: u64, choice_index: u32) -> i128 {
+        env.storage()
+            .persistent()
+            .get(&PersistentKey::ChoiceVotes(proposal_id, choice_index))
+            .unwrap_or(0)
+    }
+    pub fn set_choice_votes(env: &Env, proposal_id: u64, choice_index: u32, v: i128) {
+        env.storage()
+            .persistent()
+            .set(&PersistentKey::ChoiceVotes(proposal_id, choice_index), &v);
     }
 
     /// Convenience: check if a proposal is in a terminal state.

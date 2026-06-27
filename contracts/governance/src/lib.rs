@@ -191,6 +191,8 @@ impl GovernanceContract {
             end_time: now + duration,
             state: ProposalState::Active,
             snapshot_ledger,
+            choices: Vec::new(&env),
+            winning_choice: None,
         };
 
         GovernanceStorage::set_proposal(&env, id, &proposal);
@@ -250,6 +252,94 @@ impl GovernanceContract {
         proposals
     }
 
+    /// Create a multi-choice governance proposal.
+    ///
+    /// `choices` must contain 2–10 non-empty labels. Voters must use
+    /// `Vote::Choice(index)` to select one of the provided options.
+    /// The choice that accumulates the most weight wins on finalization,
+    /// provided total votes reach quorum.
+    pub fn create_multi_choice_proposal(
+        env: Env,
+        proposer: Address,
+        title: String,
+        description: String,
+        quorum: i128,
+        duration: u64,
+        choices: Vec<String>,
+    ) -> Result<u64, ContractError> {
+        proposer.require_auth();
+        Self::assert_ready(&env)?;
+
+        if title.len() == 0 || title.len() > 128 {
+            return Err(ContractError::InvalidTitle);
+        }
+        if description.len() == 0 || description.len() > 1024 {
+            return Err(ContractError::InvalidDescription);
+        }
+        if quorum <= 0 {
+            return Err(ContractError::InvalidQuorum);
+        }
+        if duration < 60 || duration > 2_592_000 {
+            return Err(ContractError::InvalidDurationRange);
+        }
+        if choices.len() < 2 || choices.len() > 10 {
+            return Err(ContractError::InvalidChoice);
+        }
+
+        let token = GovernanceStorage::voting_token(&env);
+        let token_client = TokenClient::new(&env, &token);
+        let total_supply = token_client.total_supply();
+        if quorum > total_supply {
+            return Err(ContractError::QuorumExceedsSupply);
+        }
+
+        let min_balance = GovernanceStorage::min_proposal_balance(&env);
+        if min_balance > 0 && token_client.balance(&proposer) < min_balance {
+            return Err(ContractError::InsufficientBalance);
+        }
+
+        let cooldown = GovernanceStorage::proposal_cooldown(&env);
+        if cooldown > 0 {
+            let now = env.ledger().timestamp();
+            if let Some(last) = GovernanceStorage::last_proposal_time(&env, &proposer) {
+                if now < last + cooldown {
+                    return Err(ContractError::ProposalCooldown);
+                }
+            }
+        }
+
+        let now = env.ledger().timestamp();
+        let id = GovernanceStorage::proposal_count(&env);
+        let proposal = Proposal {
+            id,
+            proposer: proposer.clone(),
+            title: title.clone(),
+            description: description.clone(),
+            votes_yes: 0,
+            votes_no: 0,
+            votes_abstain: 0,
+            quorum,
+            start_time: now,
+            end_time: now + duration,
+            state: ProposalState::Active,
+            snapshot_ledger: env.ledger().sequence(),
+            choices,
+            winning_choice: None,
+        };
+
+        GovernanceStorage::set_proposal(&env, id, &proposal);
+        GovernanceStorage::set_proposal_count(&env, id + 1);
+        GovernanceStorage::set_last_proposal_time(&env, &proposer, now);
+
+        GovernanceEvents::proposal_created(&env, id, &proposer, &title, quorum, now + duration);
+        Ok(id)
+    }
+
+    /// Get the accumulated vote weight for a specific choice on a multi-choice proposal.
+    pub fn get_choice_votes(env: Env, proposal_id: u64, choice_index: u32) -> i128 {
+        GovernanceStorage::choice_votes(&env, proposal_id, choice_index)
+    }
+
     // -----------------------------------------------------------------------
     // Voting
     // -----------------------------------------------------------------------
@@ -297,13 +387,40 @@ impl GovernanceContract {
             return Err(ContractError::NoVotingPower);
         }
 
-        match vote {
-            Vote::Yes => proposal.votes_yes = proposal.votes_yes.checked_add(weight)
-                .ok_or(ContractError::ArithmeticOverflow)?,
-            Vote::No => proposal.votes_no = proposal.votes_no.checked_add(weight)
-                .ok_or(ContractError::ArithmeticOverflow)?,
-            Vote::Abstain => proposal.votes_abstain = proposal.votes_abstain.checked_add(weight)
-                .ok_or(ContractError::ArithmeticOverflow)?,
+        match &vote {
+            Vote::Yes => {
+                if !proposal.choices.is_empty() {
+                    return Err(ContractError::InvalidChoice);
+                }
+                proposal.votes_yes = proposal.votes_yes.checked_add(weight)
+                    .ok_or(ContractError::ArithmeticOverflow)?;
+            }
+            Vote::No => {
+                if !proposal.choices.is_empty() {
+                    return Err(ContractError::InvalidChoice);
+                }
+                proposal.votes_no = proposal.votes_no.checked_add(weight)
+                    .ok_or(ContractError::ArithmeticOverflow)?;
+            }
+            Vote::Abstain => {
+                if !proposal.choices.is_empty() {
+                    return Err(ContractError::InvalidChoice);
+                }
+                proposal.votes_abstain = proposal.votes_abstain.checked_add(weight)
+                    .ok_or(ContractError::ArithmeticOverflow)?;
+            }
+            Vote::Choice(index) => {
+                if proposal.choices.is_empty() || *index >= proposal.choices.len() {
+                    return Err(ContractError::InvalidChoice);
+                }
+                let current = GovernanceStorage::choice_votes(&env, proposal_id, *index);
+                let new_total = current.checked_add(weight)
+                    .ok_or(ContractError::ArithmeticOverflow)?;
+                GovernanceStorage::set_choice_votes(&env, proposal_id, *index, new_total);
+                // Track total participation in votes_yes for quorum check
+                proposal.votes_yes = proposal.votes_yes.checked_add(weight)
+                    .ok_or(ContractError::ArithmeticOverflow)?;
+            }
         }
 
         GovernanceStorage::set_has_voted(&env, proposal_id, &voter, true);
@@ -353,8 +470,29 @@ impl GovernanceContract {
             .and_then(|v| v.checked_add(proposal.votes_abstain))
             .ok_or(ContractError::ArithmeticOverflow)?;
 
-        let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
-        proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        if !proposal.choices.is_empty() {
+            // Multi-choice: votes_yes holds total participation weight.
+            let total_participation = proposal.votes_yes;
+            if total_participation >= proposal.quorum {
+                // Find choice with maximum votes (first-past-the-post).
+                let mut best_index: u32 = 0;
+                let mut best_weight: i128 = GovernanceStorage::choice_votes(&env, proposal_id, 0);
+                for i in 1..proposal.choices.len() {
+                    let w = GovernanceStorage::choice_votes(&env, proposal_id, i);
+                    if w > best_weight {
+                        best_weight = w;
+                        best_index = i;
+                    }
+                }
+                proposal.winning_choice = Some(best_index);
+                proposal.state = ProposalState::Passed;
+            } else {
+                proposal.state = ProposalState::Rejected;
+            }
+        } else {
+            let passed = total_votes >= proposal.quorum && proposal.votes_yes > proposal.votes_no;
+            proposal.state = if passed { ProposalState::Passed } else { ProposalState::Rejected };
+        }
 
         GovernanceStorage::set_proposal(&env, proposal_id, &proposal);
         GovernanceEvents::proposal_finalized(&env, proposal_id, &proposal.state);

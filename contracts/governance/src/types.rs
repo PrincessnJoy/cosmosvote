@@ -35,6 +35,7 @@ pub enum ContractError {
     NoVotingPower       = 25,
     AdminVoteRestricted = 26,
     VoteNotFound        = 27,
+    InvalidChoice       = 28,
 
     // Admin
     NotAdmin            = 30,
@@ -91,6 +92,11 @@ pub struct Proposal {
     pub end_time: u64,
     pub state: ProposalState,
     pub snapshot_ledger: u32,
+    /// Non-empty only for multi-choice proposals. Each element is a choice label.
+    /// When set, voters must use `Vote::Choice(index)` instead of Yes/No/Abstain.
+    pub choices: soroban_sdk::Vec<String>,
+    /// Index of the winning choice after finalization (multi-choice proposals only).
+    pub winning_choice: Option<u32>,
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +109,9 @@ pub enum Vote {
     Yes,
     No,
     Abstain,
+    /// Cast a vote for a named choice in a multi-choice proposal.
+    /// `index` is the 0-based index into `Proposal.choices`.
+    Choice(u32),
 }
 
 #[contracttype]
