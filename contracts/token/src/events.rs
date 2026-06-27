@@ -1,6 +1,6 @@
 //! Token contract — on-chain event emission.
 
-use soroban_sdk::{symbol_short, Address, Env};
+use soroban_sdk::{symbol_short, Address, BytesN, Env};
 
 pub struct TokenEvents;
 
@@ -44,6 +44,13 @@ impl TokenEvents {
         env.events().publish(
             (symbol_short!("token"), symbol_short!("admin")),
             (old.clone(), new.clone()),
+        );
+    }
+
+    pub fn upgraded(env: &Env, new_wasm_hash: &BytesN<32>) {
+        env.events().publish(
+            (symbol_short!("token"), symbol_short!("upgraded")),
+            (new_wasm_hash.clone(),),
         );
     }
 }

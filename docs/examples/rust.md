@@ -78,6 +78,9 @@ GovernanceContract::transfer_admin(env, admin.clone(), new_admin.clone())?;
 
 // Cancel active proposal
 GovernanceContract::cancel(env, admin.clone(), proposal_id)?;
+
+// Upgrade governance contract
+GovernanceContract::upgrade(env, admin.clone(), new_wasm_hash)?;
 ```
 
 ## Token Operations

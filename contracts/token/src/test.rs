@@ -150,6 +150,23 @@ fn test_transfer_admin() {
 }
 
 #[test]
+fn test_upgrade_contract() {
+    let env = Env::default();
+    let (token, admin, _) = setup(&env);
+    let wasm_hash = env.deployer().upload_contract_wasm(&[0x1, 0x2, 0x3, 0x4]);
+    token.upgrade(&admin, &wasm_hash);
+}
+
+#[test]
+fn test_upgrade_contract_non_admin_fails() {
+    let env = Env::default();
+    let (token, _, user) = setup(&env);
+    let wasm_hash = env.deployer().upload_contract_wasm(&[0x1, 0x2, 0x3, 0x4]);
+    let result = token.try_upgrade(&user, &wasm_hash);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
 fn test_transfer_admin_non_admin_fails() {
     let env = Env::default();
     let (token, _, user) = setup(&env);

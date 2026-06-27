@@ -28,7 +28,7 @@ fn setup(env: &Env) -> (GovernanceContractClient<'_>, TokenContractClient<'_>, A
 
     let gov_id = env.register(GovernanceContract, ());
     let gov = GovernanceContractClient::new(env, &gov_id);
-    gov.initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
 
     (gov, token, admin, voter, voter2)
 }
@@ -72,7 +72,7 @@ fn test_initialize_success() {
 
     let gov_id = env.register(GovernanceContract, ());
     let gov = GovernanceContractClient::new(&env, &gov_id);
-    gov.initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
+    gov.initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
 
     assert_eq!(gov.admin(), admin);
     assert_eq!(gov.proposal_count(), 0);
@@ -83,7 +83,7 @@ fn test_initialize_double_init_fails() {
     let env = Env::default();
     let (gov, _, admin, _, _) = setup(&env);
     let token_id = env.register(TokenContract, ());
-    let result = gov.try_initialize(initialize(&admin, &token_id, &0i128, &0u64, &false)admin, &token_id, &0i128, &0u64, &0u32, &false);
+    let result = gov.try_initialize(&admin, &token_id, &0i128, &0u64, &0u32, &false);
     assert_eq!(result, Err(Ok(ContractError::AlreadyInitialized)));
 }
 
