@@ -12,19 +12,32 @@ import type { Proposal, VoteRecord } from './types';
 
 const server = new SorobanRpc.Server(config.rpcUrl);
 
-// Simulate a read-only contract call without a real account
-async function simulateCall(
+// ---------------------------------------------------------------------------
+// Simulation error — distinct from real on-chain failures
+// ---------------------------------------------------------------------------
+
+export class SimulationError extends Error {
+  constructor(
+    message: string,
+    public readonly raw: SorobanRpc.Api.SimulateTransactionResponse,
+  ) {
+    super(message);
+    this.name = 'SimulationError';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+function buildTx(
+  senderOrDummy: string,
   contractId: string,
   method: string,
-  ...args: xdr.ScVal[]
-): Promise<unknown> {
-  // Use a zero-sequence dummy account — valid for simulation only
-  const dummyAccount = new Account(
-    'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN',
-    '0'
-  );
-
-  const tx = new TransactionBuilder(dummyAccount, {
+  args: xdr.ScVal[],
+): ReturnType<TransactionBuilder['build']> {
+  const account = new Account(senderOrDummy, '0');
+  return new TransactionBuilder(account, {
     fee: '100',
     networkPassphrase: config.networkPassphrase,
   })
@@ -33,17 +46,100 @@ async function simulateCall(
         contract: contractId,
         function: method,
         args,
-      })
+      }),
     )
     .setTimeout(30)
     .build();
+}
 
+// Simulate a read-only contract call without a real account
+async function simulateCall(
+  contractId: string,
+  method: string,
+  ...args: xdr.ScVal[]
+): Promise<unknown> {
+  // Use a zero-sequence dummy account — valid for simulation only
+  const dummyAccount = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+  const tx = buildTx(dummyAccount, contractId, method, args);
   const result = (await server.simulateTransaction(
     tx
   )) as SorobanRpc.Api.SimulateTransactionSuccessResponse;
 
   if (!result.result) throw new Error(`Simulation failed for ${method}`);
   return scValToNative(result.result.retval);
+}
+
+// ---------------------------------------------------------------------------
+// Public: simulate a write transaction and return a structured preview.
+// This does NOT submit anything on-chain.
+// ---------------------------------------------------------------------------
+
+export interface SimulationPreview {
+  /** Estimated fee in stroops (1 XLM = 10_000_000 stroops). */
+  feeStoops: string;
+  /** Decoded return value, if any. */
+  result: unknown;
+  /** Whether the simulation succeeded. */
+  success: true;
+}
+
+/**
+ * Simulate a state-changing contract call for the given sender address.
+ * Returns a `SimulationPreview` on success or throws `SimulationError` on
+ * failure — so callers can distinguish simulation errors from real tx errors.
+ */
+export async function simulateWriteCall(
+  sender: string,
+  contractId: string,
+  method: string,
+  args: xdr.ScVal[],
+): Promise<SimulationPreview> {
+  const tx = buildTx(sender, contractId, method, args);
+  const raw = await server.simulateTransaction(tx);
+
+  if (SorobanRpc.Api.isSimulationError(raw)) {
+    throw new SimulationError(
+      `Simulation error for ${method}: ${(raw as SorobanRpc.Api.SimulateTransactionErrorResponse).error}`,
+      raw,
+    );
+  }
+
+  const success = raw as SorobanRpc.Api.SimulateTransactionSuccessResponse;
+  return {
+    feeStoops: success.minResourceFee ?? '0',
+    result: success.result ? scValToNative(success.result.retval) : undefined,
+    success: true,
+  };
+}
+
+/** Simulate casting a vote. Call this before the real transaction to show the user a fee preview. */
+export async function simulateCastVote(
+  voter: string,
+  proposalId: number,
+  vote: string,
+): Promise<SimulationPreview> {
+  return simulateWriteCall(voter, config.governanceContractId, 'cast_vote', [
+    nativeToScVal(voter, { type: 'address' }),
+    nativeToScVal(BigInt(proposalId), { type: 'u64' }),
+    nativeToScVal({ tag: vote, values: [] }, { type: 'enum' }),
+  ]);
+}
+
+/** Simulate creating a proposal. Lets the proposer preview the fee before submitting. */
+export async function simulateCreateProposal(
+  proposer: string,
+  title: string,
+  description: string,
+  quorum: bigint,
+  duration: bigint,
+): Promise<SimulationPreview> {
+  return simulateWriteCall(proposer, config.governanceContractId, 'create_proposal', [
+    nativeToScVal(proposer, { type: 'address' }),
+    nativeToScVal(title, { type: 'string' }),
+    nativeToScVal(description, { type: 'string' }),
+    nativeToScVal(quorum, { type: 'i128' }),
+    nativeToScVal(duration, { type: 'u64' }),
+  ]);
 }
 
 export async function fetchProposalCount(): Promise<number> {

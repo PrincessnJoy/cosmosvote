@@ -2,6 +2,7 @@ import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useState } from 'react';
 import { formatTokenAmount } from '../utils';
+import { VoteSimulationPreview } from './VoteSimulationPreview';
 
 interface Props {
   proposal: Proposal;
@@ -83,6 +84,14 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
                 ? `You voted ${voteRecord.vote} with weight ${formatTokenAmount(voteRecord.weight, decimals)}`
                 : 'You have not voted on this proposal'}
           </div>
+        )}
+
+        {/* Simulation preview — shown when wallet is connected and proposal is Active */}
+        {walletAddress && p.state === 'Active' && !hasVoted && (
+          <VoteSimulationPreview
+            proposalId={Number(p.id)}
+            walletAddress={walletAddress}
+          />
         )}
       </div>
     </div>
