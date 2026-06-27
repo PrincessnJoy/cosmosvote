@@ -12,7 +12,7 @@ mod types;
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
 
 use events::TokenEvents;
 use storage::TokenStorage;
@@ -27,14 +27,20 @@ impl TokenContract {
     // Initialization
     // -----------------------------------------------------------------------
 
-    /// Initialize the token contract.
+    /// Initialize the token contract (SEP-41 compatible).
     ///
     /// * `admin`          – receives initial supply and admin privileges
     /// * `initial_supply` – total tokens minted to admin
+    /// * `name`           – human-readable name (e.g., "CosmosVote Token")
+    /// * `symbol`         – ticker symbol (e.g., "VOTE")
+    /// * `decimals`       – number of decimal places (e.g., 7 for Stellar)
     pub fn initialize(
         env: Env,
         admin: Address,
         initial_supply: i128,
+        name: String,
+        symbol: String,
+        decimals: u32,
     ) -> Result<(), ContractError> {
         if TokenStorage::is_initialized(&env) {
             return Err(ContractError::AlreadyInitialized);
@@ -43,6 +49,9 @@ impl TokenContract {
         TokenStorage::set_admin(&env, &admin);
         TokenStorage::set_total_supply(&env, initial_supply);
         TokenStorage::set_balance(&env, &admin, initial_supply);
+        TokenStorage::set_name(&env, &name);
+        TokenStorage::set_symbol(&env, &symbol);
+        TokenStorage::set_decimals(&env, decimals);
         TokenStorage::set_initialized(&env);
         TokenStorage::set_version(&env, (1, 0, 0));
 
@@ -67,6 +76,10 @@ impl TokenContract {
         TokenStorage::balance(&env, &owner)
     }
 
+    pub fn balance_at(env: Env, owner: Address, _ledger: u64) -> i128 {
+        TokenStorage::balance(&env, &owner)
+    }
+
     pub fn allowance(env: Env, owner: Address, spender: Address) -> i128 {
         TokenStorage::allowance(&env, &owner, &spender)
     }
@@ -77,6 +90,21 @@ impl TokenContract {
 
     pub fn version(env: Env) -> (u32, u32, u32) {
         TokenStorage::version(&env)
+    }
+
+    /// Return the token name (SEP-41).
+    pub fn name(env: Env) -> String {
+        TokenStorage::name(&env)
+    }
+
+    /// Return the token symbol (SEP-41).
+    pub fn symbol(env: Env) -> String {
+        TokenStorage::symbol(&env)
+    }
+
+    /// Return the number of decimal places (SEP-41).
+    pub fn decimals(env: Env) -> u32 {
+        TokenStorage::decimals(&env)
     }
 
     // -----------------------------------------------------------------------
@@ -91,6 +119,7 @@ impl TokenContract {
         amount: i128,
     ) -> Result<(), ContractError> {
         from.require_auth();
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
         let from_bal = TokenStorage::balance(&env, &from);
@@ -119,10 +148,12 @@ impl TokenContract {
         amount: i128,
     ) -> Result<(), ContractError> {
         spender.require_auth();
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
-        let allowance = TokenStorage::allowance(&env, &from, &spender);
-        if allowance < amount {
+        let allowance_record = TokenStorage::allowance_record(&env, &from, &spender)
+            .ok_or(ContractError::AllowanceExceeded)?;
+        if allowance_record.amount < amount {
             return Err(ContractError::AllowanceExceeded);
         }
 
@@ -131,7 +162,14 @@ impl TokenContract {
             return Err(ContractError::InsufficientBalance);
         }
 
-        TokenStorage::set_allowance(&env, &from, &spender, allowance - amount);
+        let remaining = allowance_record.amount - amount;
+        TokenStorage::set_allowance(
+            &env,
+            &from,
+            &spender,
+            remaining,
+            allowance_record.expiry_ledger,
+        );
         TokenStorage::set_balance(&env, &from, from_bal - amount);
         let to_bal = TokenStorage::balance(&env, &to);
         TokenStorage::set_balance(&env, &to, to_bal + amount);
@@ -150,12 +188,17 @@ impl TokenContract {
         owner: Address,
         spender: Address,
         amount: i128,
+        expiry_ledger: u32,
     ) -> Result<(), ContractError> {
         owner.require_auth();
         if amount < 0 {
             return Err(ContractError::InvalidAmount);
         }
-        TokenStorage::set_allowance(&env, &owner, &spender, amount);
+        let current_ledger = env.ledger().sequence();
+        if expiry_ledger <= current_ledger {
+            return Err(ContractError::InvalidExpiry);
+        }
+        TokenStorage::set_allowance(&env, &owner, &spender, amount, expiry_ledger);
         TokenEvents::approval(&env, &owner, &spender, amount);
         Ok(())
     }
@@ -173,6 +216,7 @@ impl TokenContract {
     ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
         let supply = TokenStorage::total_supply(&env);
@@ -193,6 +237,7 @@ impl TokenContract {
     ) -> Result<(), ContractError> {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
+        Self::assert_not_paused(&env)?;
         Self::validate_amount(amount)?;
 
         let bal = TokenStorage::balance(&env, &from);
@@ -208,12 +253,93 @@ impl TokenContract {
         Ok(())
     }
 
+    /// Burn your own tokens. Owner only.
+    pub fn burn_self(
+        env: Env,
+        owner: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        owner.require_auth();
+        Self::validate_amount(amount)?;
+
+        let bal = TokenStorage::balance(&env, &owner);
+        if bal < amount {
+            return Err(ContractError::InsufficientBalance);
+        }
+
+        let supply = TokenStorage::total_supply(&env);
+        TokenStorage::set_total_supply(&env, supply - amount);
+        TokenStorage::set_balance(&env, &owner, bal - amount);
+
+        TokenEvents::burned(&env, &owner, &owner, amount);
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Delegation
+    // -----------------------------------------------------------------------
+
+    /// Delegate voting power from `owner` to `delegate_to`.
+    ///
+    /// The owner's token balance is retained; only voting weight is delegated.
+    /// An owner can only delegate to one address at a time.
+    pub fn delegate(
+        env: Env,
+        owner: Address,
+        delegate_to: Address,
+    ) -> Result<(), ContractError> {
+        owner.require_auth();
+        if owner == delegate_to {
+            return Err(ContractError::CannotDelegateSelf);
+        }
+        if TokenStorage::delegation(&env, &owner).is_some() {
+            return Err(ContractError::AlreadyDelegating);
+        }
+        TokenStorage::set_delegation(&env, &owner, &delegate_to);
+        TokenEvents::delegated(&env, &owner, &delegate_to);
+        Ok(())
+    }
+
+    /// Remove the delegation from `owner`, reclaiming their own voting power.
+    pub fn undelegate(env: Env, owner: Address) -> Result<(), ContractError> {
+        owner.require_auth();
+        if TokenStorage::delegation(&env, &owner).is_none() {
+            return Err(ContractError::NotDelegating);
+        }
+        TokenStorage::remove_delegation(&env, &owner);
+        TokenEvents::undelegated(&env, &owner);
+        Ok(())
+    }
+
+    /// Returns the current delegate for `owner`, or `None`.
+    pub fn get_delegation(env: Env, owner: Address) -> Option<Address> {
+        TokenStorage::delegation(&env, &owner)
+    }
+
+    /// Returns the voting weight for `voter`: their own balance plus the balances
+    /// of all `delegators` who have delegated to them.
+    ///
+    /// Governance calls this with the list of delegators it tracks off-chain.
+    /// For on-chain use, governance accumulates delegated weight by checking each
+    /// potential delegator's stored delegation target.
+    pub fn get_delegated_weight(env: Env, voter: Address, delegators: soroban_sdk::Vec<Address>) -> i128 {
+        let mut weight = TokenStorage::balance(&env, &voter);
+        for delegator in delegators.iter() {
+            if let Some(delegate) = TokenStorage::delegation(&env, &delegator) {
+                if delegate == voter {
+                    weight = weight.saturating_add(TokenStorage::balance(&env, &delegator));
+                }
+            }
+        }
+        weight
+    }
+
     // -----------------------------------------------------------------------
     // Admin
     // -----------------------------------------------------------------------
 
-    /// Transfer admin privileges. Current admin only.
-    pub fn transfer_admin(
+    /// Initiate a two-step admin transfer. Current admin only.
+    pub fn propose_admin(
         env: Env,
         admin: Address,
         new_admin: Address,
@@ -221,8 +347,72 @@ impl TokenContract {
         admin.require_auth();
         Self::assert_admin(&env, &admin)?;
 
-        TokenStorage::set_admin(&env, &new_admin);
-        TokenEvents::admin_transferred(&env, &admin, &new_admin);
+        TokenStorage::set_pending_admin(&env, Some(&new_admin));
+        TokenEvents::admin_transfer_proposed(&env, &admin, &new_admin);
+        Ok(())
+    }
+
+    /// Accept admin privileges. Called by the pending admin.
+    pub fn accept_admin(env: Env, pending_admin: Address) -> Result<(), ContractError> {
+        pending_admin.require_auth();
+
+        let current_pending = TokenStorage::pending_admin(&env)
+            .ok_or(ContractError::NoPendingAdmin)?;
+
+        if pending_admin != current_pending {
+            return Err(ContractError::NotPendingAdmin);
+        }
+
+        let previous_admin = TokenStorage::admin(&env);
+        TokenStorage::set_admin(&env, &pending_admin);
+        TokenStorage::set_pending_admin(&env, None);
+        TokenEvents::admin_transfer_accepted(&env, &previous_admin, &pending_admin);
+        Ok(())
+    }
+
+    /// Pause all token operations. Admin only.
+    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        if TokenStorage::paused(&env) {
+            return Err(ContractError::ContractPaused);
+        }
+
+        TokenStorage::set_paused(&env, true);
+        TokenEvents::paused(&env, &admin);
+        Ok(())
+    }
+
+    /// Unpause the token contract. Admin only.
+    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+
+        if !TokenStorage::paused(&env) {
+            return Err(ContractError::NotPaused);
+        }
+
+        TokenStorage::set_paused(&env, false);
+        TokenEvents::unpaused(&env, &admin);
+        Ok(())
+    }
+
+    /// Pause the contract — blocks all transfers. Admin only.
+    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        TokenStorage::set_paused(&env, true);
+        TokenEvents::paused(&env, &admin);
+        Ok(())
+    }
+
+    /// Unpause the contract — re-enables transfers. Admin only.
+    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        TokenStorage::set_paused(&env, false);
+        TokenEvents::unpaused(&env, &admin);
         Ok(())
     }
 
@@ -251,6 +441,14 @@ impl TokenContract {
     fn assert_admin(env: &Env, caller: &Address) -> Result<(), ContractError> {
         if TokenStorage::admin(env) != *caller {
             Err(ContractError::NotAdmin)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn assert_not_paused(env: &Env) -> Result<(), ContractError> {
+        if TokenStorage::paused(env) {
+            Err(ContractError::ContractPaused)
         } else {
             Ok(())
         }
