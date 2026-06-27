@@ -1826,3 +1826,57 @@ fn test_multi_choice_create_requires_at_least_two_choices() {
     ).unwrap_err().unwrap();
     assert_eq!(err, ContractError::InvalidChoice);
 }
+
+// ---------------------------------------------------------------------------
+// Admin config setters (#305)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_set_min_proposal_balance() {
+    let env = Env::default();
+    let (gov, _, admin, _, _) = setup(&env);
+    gov.set_min_proposal_balance(&admin, &500_000i128);
+    assert_eq!(gov.get_config().min_proposal_balance, 500_000i128);
+}
+
+#[test]
+fn test_set_min_proposal_balance_non_admin_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let result = gov.try_set_min_proposal_balance(&voter, &500_000i128);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
+fn test_set_proposal_cooldown() {
+    let env = Env::default();
+    let (gov, _, admin, _, _) = setup(&env);
+    gov.set_proposal_cooldown(&admin, &3600u64);
+    assert_eq!(gov.get_config().proposal_cooldown, 3600u64);
+}
+
+#[test]
+fn test_set_proposal_cooldown_non_admin_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let result = gov.try_set_proposal_cooldown(&voter, &3600u64);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
+fn test_set_restrict_admin_vote() {
+    let env = Env::default();
+    let (gov, _, admin, _, _) = setup(&env);
+    gov.set_restrict_admin_vote(&admin, &true);
+    assert!(gov.get_config().restrict_admin_vote);
+    gov.set_restrict_admin_vote(&admin, &false);
+    assert!(!gov.get_config().restrict_admin_vote);
+}
+
+#[test]
+fn test_set_restrict_admin_vote_non_admin_fails() {
+    let env = Env::default();
+    let (gov, _, _, voter, _) = setup(&env);
+    let result = gov.try_set_restrict_admin_vote(&voter, &true);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
