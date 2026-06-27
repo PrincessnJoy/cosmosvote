@@ -398,6 +398,24 @@ impl TokenContract {
         Ok(())
     }
 
+    /// Pause the contract — blocks all transfers. Admin only.
+    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        TokenStorage::set_paused(&env, true);
+        TokenEvents::paused(&env, &admin);
+        Ok(())
+    }
+
+    /// Unpause the contract — re-enables transfers. Admin only.
+    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
+        admin.require_auth();
+        Self::assert_admin(&env, &admin)?;
+        TokenStorage::set_paused(&env, false);
+        TokenEvents::unpaused(&env, &admin);
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
