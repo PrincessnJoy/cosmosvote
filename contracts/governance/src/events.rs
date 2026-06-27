@@ -103,6 +103,13 @@ impl GovernanceEvents {
         );
     }
 
+    pub fn admin_transfer_cancelled(env: &Env, admin: &Address, cancelled_pending: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("adm_cncl")),
+            (admin.clone(), cancelled_pending.clone()),
+        );
+    }
+
     pub fn proposal_amended(
         env: &Env,
         proposal_id: u64,

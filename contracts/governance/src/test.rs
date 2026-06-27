@@ -896,6 +896,41 @@ fn test_propose_admin_zero_address_fails() {
 }
 
 #[test]
+fn test_cancel_admin_transfer_clears_pending() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+
+    gov.propose_admin(&admin, &voter);
+    assert_eq!(gov.pending_admin(), Some(voter.clone()));
+
+    gov.cancel_admin_transfer(&admin);
+    assert_eq!(gov.pending_admin(), None);
+    // Admin is unchanged
+    assert_eq!(gov.admin(), admin);
+}
+
+#[test]
+fn test_cancel_admin_transfer_non_admin_fails() {
+    let env = Env::default();
+    let (gov, _, admin, voter, _) = setup(&env);
+
+    gov.propose_admin(&admin, &voter);
+
+    let result = gov.try_cancel_admin_transfer(&voter);
+    assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
+}
+
+#[test]
+fn test_cancel_admin_transfer_no_pending_fails() {
+    let env = Env::default();
+    let (gov, _, admin, _, _) = setup(&env);
+
+    // No pending admin set — should fail
+    let result = gov.try_cancel_admin_transfer(&admin);
+    assert_eq!(result, Err(Ok(ContractError::NoPendingAdmin)));
+}
+
+#[test]
 fn test_pause_unpause() {
     let env = Env::default();
     let (gov, _, admin, voter, _) = setup(&env);
