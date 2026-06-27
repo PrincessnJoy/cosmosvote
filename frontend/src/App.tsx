@@ -6,6 +6,7 @@ import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
+import { useMeta } from './useMeta';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
@@ -19,6 +20,13 @@ export default function App() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
+
+  useMeta(
+    selected ? selected.title : 'Proposals',
+    selected
+      ? `${selected.title} — ${selected.description.slice(0, 120)}`
+      : 'Browse and vote on on-chain governance proposals for CosmosVote on Stellar Soroban.'
+  );
 
   useEffect(() => {
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
