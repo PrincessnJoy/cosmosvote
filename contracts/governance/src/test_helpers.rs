@@ -61,6 +61,7 @@ pub fn create_proposal(t: &TestEnv, proposer: &Address) -> u64 {
         &5_000_000i128,
         &604_800u64,
         &None,
+        &None,
     )
 }
 

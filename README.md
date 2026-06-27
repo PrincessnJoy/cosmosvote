@@ -283,7 +283,7 @@ The `finalise()` function is permissionless and is intended to be called by an o
 
 ```rust
 pub fn execute(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError>
-pub fn cancel(env: Env, admin: Address, proposal_id: u64) -> Result<(), ContractError>
+pub fn cancel(env: Env, admin: Address, proposal_id: u64, reason: Option<String>) -> Result<(), ContractError>
 ```
 
 ### Admin Operations
@@ -584,6 +584,7 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md). Quick checklist:
 - [Architecture Decision Records](./docs/adr/)
 - [Security Documentation](./docs/security/)
 - [Notification Service](./docs/notification-service.md)
+- [Gas Budgeting Guide](./docs/gas-budgeting.md)
 
 ---
 
