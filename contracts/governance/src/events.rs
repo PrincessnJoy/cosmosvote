@@ -1,6 +1,6 @@
 //! Governance contract — on-chain event emission.
 
-use soroban_sdk::{symbol_short, Address, Env, String};
+use soroban_sdk::{symbol_short, Address, BytesN, Env, String};
 
 use crate::types::{ProposalState, Vote};
 
@@ -35,6 +35,11 @@ impl GovernanceEvents {
         );
     }
 
+    /// Emitted exactly once per proposal when `finalise()` transitions it from
+    /// `Active` to `Passed` or `Rejected`. Off-chain indexers should deduplicate
+    /// on `(proposal_id, "final")` — the idempotency guard in `finalise()`
+    /// prevents a second emission, but indexers processing historical ledgers
+    /// should still treat duplicate events as no-ops.
     pub fn proposal_finalized(env: &Env, proposal_id: u64, state: &ProposalState) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("final")),
@@ -49,10 +54,17 @@ impl GovernanceEvents {
         );
     }
 
-    pub fn proposal_cancelled(env: &Env, proposal_id: u64, admin: &Address) {
+    pub fn proposal_cancelled(env: &Env, proposal_id: u64, admin: &Address, voter_count: u32) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("cancel")),
-            (proposal_id, admin.clone()),
+            (proposal_id, admin.clone(), voter_count),
+        );
+    }
+
+    pub fn upgraded(env: &Env, new_wasm_hash: &BytesN<32>) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("upgraded")),
+            (new_wasm_hash.clone(),),
         );
     }
 
@@ -63,6 +75,20 @@ impl GovernanceEvents {
         );
     }
 
+    pub fn vote_retracted(env: &Env, proposal_id: u64, voter: &Address, weight: i128) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("retract")),
+            (proposal_id, voter.clone(), weight),
+        );
+    }
+
+    pub fn vote_changed(env: &Env, proposal_id: u64, voter: &Address, old_vote: &Vote, new_vote: &Vote, weight: i128) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("chgvote")),
+            (proposal_id, voter.clone(), old_vote.clone(), new_vote.clone(), weight),
+        );
+    }
+
     pub fn admin_transferred(env: &Env, old_admin: &Address, new_admin: &Address) {
         env.events().publish(
             (symbol_short!("gov"), symbol_short!("admin")),
@@ -70,17 +96,46 @@ impl GovernanceEvents {
         );
     }
 
-    pub fn admin_transfer_initiated(env: &Env, current_admin: &Address, pending_admin: &Address) {
+    pub fn admin_transfer_proposed(env: &Env, current_admin: &Address, pending_admin: &Address) {
         env.events().publish(
-            (symbol_short!("gov"), symbol_short!("admint")),
+            (symbol_short!("gov"), symbol_short!("propose")),
             (current_admin.clone(), pending_admin.clone()),
         );
     }
 
-    pub fn admin_transfer_completed(env: &Env, previous_admin: &Address, new_admin: &Address) {
+    pub fn admin_transfer_accepted(env: &Env, previous_admin: &Address, new_admin: &Address) {
         env.events().publish(
-            (symbol_short!("gov"), symbol_short!("admina")),
+            (symbol_short!("gov"), symbol_short!("accept")),
             (previous_admin.clone(), new_admin.clone()),
+        );
+    }
+
+    pub fn admin_transfer_cancelled(env: &Env, admin: &Address, cancelled_pending: &Address) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("adm_cncl")),
+            (admin.clone(), cancelled_pending.clone()),
+        );
+    }
+
+    pub fn proposal_amended(
+        env: &Env,
+        proposal_id: u64,
+        proposer: &Address,
+        old_title: &String,
+        new_title: &String,
+        old_description: &String,
+        new_description: &String,
+    ) {
+        env.events().publish(
+            (symbol_short!("gov"), symbol_short!("amended")),
+            (
+                proposal_id,
+                proposer.clone(),
+                old_title.clone(),
+                new_title.clone(),
+                old_description.clone(),
+                new_description.clone(),
+            ),
         );
     }
 
@@ -98,24 +153,17 @@ impl GovernanceEvents {
         );
     }
 
-    pub fn min_balance_updated(env: &Env, admin: &Address, old_value: i128, new_value: i128) {
+    pub fn voting_token_updated(env: &Env, old_token: &Address, new_token: &Address) {
         env.events().publish(
-            (symbol_short!("gov"), symbol_short!("minbal")),
-            (admin.clone(), old_value, new_value),
+            (symbol_short!("gov"), symbol_short!("token")),
+            (old_token.clone(), new_token.clone()),
         );
     }
 
-    pub fn cooldown_updated(env: &Env, admin: &Address, old_value: u64, new_value: u64) {
+    pub fn contract_upgraded(env: &Env, new_wasm_hash: &BytesN<32>) {
         env.events().publish(
-            (symbol_short!("gov"), symbol_short!("cooldown")),
-            (admin.clone(), old_value, new_value),
-        );
-    }
-
-    pub fn restrict_admin_vote_updated(env: &Env, admin: &Address, old_value: bool, new_value: bool) {
-        env.events().publish(
-            (symbol_short!("gov"), symbol_short!("rstadmv")),
-            (admin.clone(), old_value, new_value),
+            (symbol_short!("gov"), symbol_short!("upgrade")),
+            new_wasm_hash.clone(),
         );
     }
 }
