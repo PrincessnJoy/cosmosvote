@@ -70,12 +70,34 @@ stellar contract invoke \
 
 ## Step 6 — Run the Frontend
 
+The frontend is a React + Vite application that allows you to browse proposals.
+
 ```bash
 cd frontend
+# 1. Install dependencies
 npm install
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env and set:
+# VITE_GOVERNANCE_CONTRACT_ID="CB..."
+# VITE_TOKEN_CONTRACT_ID="CD..."
+# VITE_RPC_URL="http://localhost:8000" (or testnet URL)
+
+# 3. Start development server
 npm run dev
 # Open http://localhost:5173
 ```
+
+### Frontend Configuration
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_GOVERNANCE_CONTRACT_ID` | The ID of the deployed governance contract |
+| `VITE_TOKEN_CONTRACT_ID` | The ID of the deployed token contract |
+| `VITE_RPC_URL` | The Soroban RPC endpoint (local, testnet, or mainnet) |
+| `VITE_NETWORK_PASSPHRASE` | Network passphrase for signing transactions |
+
 
 ## Next Steps
 
@@ -84,43 +106,45 @@ npm run dev
 - Check the [Error Reference](./errors.md)
 - Browse [Architecture Decision Records](./adr/)
 
----
+## Promotion Workflow: local → testnet → mainnet
 
-## Container Health Checks
+Changes must follow this promotion path before reaching mainnet:
 
-All services in `docker-compose.yml` expose health status for orchestration tools (Docker Swarm, Kubernetes, etc.).
-
-### stellar-node
-
-| Property | Value |
-|----------|-------|
-| Endpoint | `http://localhost:8000/health` |
-| Interval | 15 s |
-| Timeout | 10 s |
-| Start period | 30 s (node needs time to initialize) |
-| Retries | 5 |
-
-The Stellar quickstart node exposes `/health` on its RPC port. The `dev` service waits for `stellar-node` to be **healthy** before starting (`depends_on: condition: service_healthy`).
-
-### dev (build/test container)
-
-| Property | Value |
-|----------|-------|
-| Endpoint | `http://stellar-node:8000/health` |
-| Interval | 30 s |
-| Timeout | 10 s |
-| Start period | 15 s |
-| Retries | 3 |
-
-The `dev` container checks that the upstream RPC node is reachable. This ensures CI pipelines and orchestrators can detect when the build container has lost connectivity to its dependency.
-
-### Dockerfile HEALTHCHECK
-
-The `Dockerfile` also embeds a `HEALTHCHECK` instruction so that images built from it are health-aware when run standalone (outside compose):
-
-```dockerfile
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -fsS "${STELLAR_RPC_URL:-http://localhost:8000}/health" > /dev/null || exit 1
+```
+local  →  testnet (staging)  →  mainnet
 ```
 
-The `STELLAR_RPC_URL` environment variable controls which endpoint is polled; it defaults to `http://localhost:8000/health` when not set.
+### Step 1 — Validate locally
+
+```bash
+docker compose up
+docker compose run --rm dev make test
+```
+
+### Step 2 — Deploy to testnet (staging)
+
+```bash
+STELLAR_SECRET_KEY=<testnet-key> ./scripts/deploy_testnet.sh
+```
+
+Record the printed SHA-256 WASM hashes. The CI `testnet-gate` workflow runs this automatically on every push to `main`.
+
+### Step 3 — Promote to mainnet
+
+Only after testnet smoke tests pass:
+
+```bash
+# Dry-run first to preview all commands
+./scripts/deploy_mainnet.sh --dry-run
+
+# Deploy with hash verification
+./scripts/deploy_mainnet.sh \
+  --expected-token-hash <sha256-from-testnet> \
+  --expected-gov-hash   <sha256-from-testnet>
+```
+
+Use `--yes` to skip the interactive prompt in automated pipelines.
+
+### CI gate
+
+The `.github/workflows/testnet-gate.yml` workflow deploys to testnet and runs smoke tests on every merge to `main`. Mainnet deployments are always manual and require the WASM hashes printed by the testnet deployment.
