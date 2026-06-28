@@ -1,23 +1,23 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
+import { fetchAllProposals, fetchTokenDecimals } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
+import { useWallet } from './WalletContext';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
 export default function App() {
+  const { walletAddress, tokenBalance, connect, disconnect } = useWallet();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
 
   useEffect(() => {
@@ -54,6 +54,12 @@ export default function App() {
               {tokenBalance !== null && (
                 <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
               )}
+              <button
+                onClick={disconnect}
+                style={{ marginTop: 4, background: 'none', border: '1px solid #475569', color: '#94a3b8', borderRadius: 4, padding: '2px 8px', fontSize: '0.75rem', cursor: 'pointer' }}
+              >
+                Disconnect
+              </button>
             </div>
           ) : (
             <button
@@ -118,7 +124,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>
