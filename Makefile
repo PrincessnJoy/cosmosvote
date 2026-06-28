@@ -55,9 +55,13 @@ doc:
 clean:
 	cargo clean
 
-## Run coverage (requires cargo-tarpaulin)
+## Run coverage and generate HTML + XML reports (requires cargo-tarpaulin)
 coverage:
-	cargo tarpaulin --out Html --output-dir coverage/ --features testutils
+	cargo tarpaulin --out Html Xml --output-dir coverage/ --features testutils --exclude-files "*/test*"
+
+## Run coverage and fail if below 60% threshold
+coverage-check:
+	cargo tarpaulin --out Xml --output-dir coverage/ --features testutils --exclude-files "*/test*" --fail-under 60
 
 ## Build with debug logs enabled
 build-debug:
@@ -67,6 +71,10 @@ build-debug:
 wasm-size: build
 	@echo "=== WASM binary sizes ==="
 	@find target/wasm32-unknown-unknown/release -name "*.wasm" | xargs ls -lh 2>/dev/null || echo "No WASM files found"
+
+## Run mutation tests against governance contract (requires cargo-mutants)
+mutants:
+	cargo mutants -p cosmosvote-governance --features testutils
 
 ## Run all checks (CI equivalent)
 ci: fmt-check lint test build
