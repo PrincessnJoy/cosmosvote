@@ -9,16 +9,43 @@ import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
+function getUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    search: p.get('q') ?? '',
+    stateFilter: (p.get('state') as ProposalState | 'All') ?? 'All',
+  };
+}
+
+function setUrlParams(search: string, stateFilter: string) {
+  const p = new URLSearchParams();
+  if (search) p.set('q', search);
+  if (stateFilter !== 'All') p.set('state', stateFilter);
+  const qs = p.toString();
+  window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+}
+
 export default function App() {
+  const initial = getUrlParams();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
+  const [search, setSearch] = useState(initial.search);
+  const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>(initial.stateFilter);
   const [selected, setSelected] = useState<Proposal | null>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
+
+  function connect() {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) setWalletAddress(addr);
+  }
+
+  useEffect(() => {
+    if (!walletAddress) { setTokenBalance(null); return; }
+    fetchTokenBalance(walletAddress).then(setTokenBalance).catch(() => setTokenBalance(null));
+  }, [walletAddress]);
 
   useEffect(() => {
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
@@ -29,6 +56,10 @@ export default function App() {
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    setUrlParams(search, stateFilter);
+  }, [search, stateFilter]);
 
   const filtered = useMemo(() => {
     return proposals.filter(p => {
@@ -118,7 +149,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>
