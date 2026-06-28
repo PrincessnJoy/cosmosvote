@@ -1,47 +1,72 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import type { Proposal, ProposalState } from './types';
 import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
+import { usePolling } from './hooks/usePolling';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
+const POLL_INTERVAL = 15_000; // 15 seconds
 
 export default function App() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [decimals, setDecimals] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
-  const [decimals, setDecimals] = useState<number>(0);
 
-  useEffect(() => {
-    Promise.all([fetchAllProposals(), fetchTokenDecimals()])
-      .then(([props, decs]) => {
-        setProposals(props);
-        setDecimals(decs);
-      })
-      .catch(e => setError(String(e)))
-      .finally(() => setLoading(false));
+  function connect() {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) {
+      setWalletAddress(addr);
+      fetchTokenBalance(addr).then(setTokenBalance).catch(() => setTokenBalance(null));
+    }
+  }
+
+  // Poll for proposals and decimals, updating in place
+  const fetchProposals = useCallback(async () => {
+    const [props, decs] = await Promise.all([fetchAllProposals(), fetchTokenDecimals()]);
+    setProposals(props);
+    setDecimals(decs);
+    setLastUpdated(new Date());
+    setError(null);
+    setLoading(false);
   }, []);
 
-  const filtered = useMemo(() => {
-    return proposals.filter(p => {
-      const matchState = stateFilter === 'All' || p.state === stateFilter;
-      const q = search.toLowerCase();
-      const matchSearch = !q || p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
-      return matchState && matchSearch;
-    });
-  }, [proposals, search, stateFilter]);
+  const handlePollError = useCallback(async () => {
+    try {
+      await fetchProposals();
+    } catch (e) {
+      setError(String(e));
+      setLoading(false);
+      throw e; // re-throw so usePolling can back off
+    }
+  }, [fetchProposals]);
+
+  usePolling(handlePollError, { interval: POLL_INTERVAL });
+
+  // If selected proposal is stale, update it with fresh data
+  const freshSelected = useMemo(
+    () => selected ? proposals.find(p => p.id === selected.id) ?? selected : null,
+    [selected, proposals]
+  );
+
+  const filtered = useMemo(() => proposals.filter(p => {
+    const matchState = stateFilter === 'All' || p.state === stateFilter;
+    const q = search.toLowerCase();
+    return matchState && (!q || p.title.toLowerCase().includes(q) || p.description.toLowerCase().includes(q));
+  }), [proposals, search, stateFilter]);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
-      {/* Header */}
       <header style={{ background: '#1e293b', color: '#fff', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '1.5rem' }}>🌌 CosmosVote</h1>
@@ -51,15 +76,13 @@ export default function App() {
           {walletAddress ? (
             <div>
               <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
-              {tokenBalance !== null && (
-                <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>
-              )}
+              {tokenBalance !== null && <div style={{ fontSize: '0.75rem', color: '#38bdf8' }}>{formatTokenAmount(tokenBalance, decimals)}</div>}
+              <button onClick={() => { setWalletAddress(null); setTokenBalance(null); }} style={{ marginTop: 4, background: 'none', border: '1px solid #475569', color: '#94a3b8', borderRadius: 4, padding: '2px 8px', fontSize: '0.75rem', cursor: 'pointer' }}>
+                Disconnect
+              </button>
             </div>
           ) : (
-            <button
-              onClick={connect}
-              style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
-            >
+            <button onClick={connect} style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}>
               Connect Wallet
             </button>
           )}
@@ -67,7 +90,14 @@ export default function App() {
       </header>
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1rem' }}>
-        {/* Filters */}
+        {/* Live update indicator */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+          <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+            🔄 Auto-updating every {POLL_INTERVAL / 1000}s
+            {lastUpdated && ` · Last updated ${lastUpdated.toLocaleTimeString()}`}
+          </span>
+        </div>
+
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <input
             type="search"
@@ -88,7 +118,6 @@ export default function App() {
           </select>
         </div>
 
-        {/* Stats bar */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           {[
             { label: 'Total', count: proposals.length, color: '#1e293b' },
@@ -103,33 +132,21 @@ export default function App() {
           ))}
         </div>
 
-        {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
-        
+
         <div style={{ display: 'grid', gap: '1rem' }}>
-          {loading && (
-            <>
-              <ProposalSkeleton />
-              <ProposalSkeleton />
-              <ProposalSkeleton />
-            </>
-          )}
+          {loading && <><ProposalSkeleton /><ProposalSkeleton /><ProposalSkeleton /></>}
           {!loading && !error && filtered.length === 0 && (
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>
 
-      {selected && (
-        <ProposalDetail
-          proposal={selected}
-          decimals={decimals}
-          walletAddress={walletAddress}
-          onClose={() => setSelected(null)}
-        />
+      {freshSelected && (
+        <ProposalDetail proposal={freshSelected} decimals={decimals} walletAddress={walletAddress} onClose={() => setSelected(null)} />
       )}
     </div>
   );
