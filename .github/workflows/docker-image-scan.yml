@@ -19,7 +19,7 @@ jobs:
     name: Scan Backend Docker Image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build backend image
         run: docker build -t cosmosvote-backend:${{ github.sha }} .
@@ -37,7 +37,7 @@ jobs:
     name: Scan Frontend Docker Image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build frontend image
         run: docker build -t cosmosvote-frontend:${{ github.sha }} ./frontend
