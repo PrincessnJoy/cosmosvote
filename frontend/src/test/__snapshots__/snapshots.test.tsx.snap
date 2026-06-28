@@ -1,0 +1,48 @@
+// Vitest/Jest snapshot v1
+exports[`ProposalCard snapshot regression matches snapshot — Active state 1`] = `
+<div>
+  <div />
+</div>
+`;
+
+exports[`ProposalCard snapshot regression matches snapshot — Passed state 1`] = `
+<div>
+  <div />
+</div>
+`;
+
+exports[`ProposalCard snapshot regression matches snapshot — Rejected state 1`] = `
+<div>
+  <div />
+</div>
+`;
+
+exports[`ProposalCard snapshot regression matches snapshot — Executed state 1`] = `
+<div>
+  <div />
+</div>
+`;
+
+exports[`ProposalCard snapshot regression matches snapshot — Cancelled state 1`] = `
+<div>
+  <div />
+</div>
+`;
+
+exports[`ProposalDetail modal snapshot regression matches snapshot — no wallet connected 1`] = `
+<div>
+  <div />
+</div>
+`;
+
+exports[`ProposalDetail modal snapshot regression matches snapshot — wallet connected 1`] = `
+<div>
+  <div />
+</div>
+`;
+
+exports[`ProposalDetail modal snapshot regression matches snapshot — Passed state 1`] = `
+<div>
+  <div />
+</div>
+`;
