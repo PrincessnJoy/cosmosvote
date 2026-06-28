@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { I18nProvider } from './I18nContext';
 import { validateConfig } from './config';
 
 const root = document.getElementById('root');
@@ -10,7 +11,9 @@ try {
   validateConfig();
   createRoot(root).render(
     <StrictMode>
-      <App />
+      <I18nProvider>
+        <App />
+      </I18nProvider>
     </StrictMode>
   );
 } catch (error) {
