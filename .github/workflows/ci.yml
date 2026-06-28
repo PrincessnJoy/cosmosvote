@@ -98,6 +98,19 @@ jobs:
           path: target/wasm32-unknown-unknown/release/*.wasm
           retention-days: 7
 
+  deployment-tooling:
+    name: Deployment Tooling Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint shell scripts
+        run: |
+          find scripts/ -name '*.sh' | xargs -I{} bash -n {}
+      - name: Install Docker Compose
+        run: docker compose version || (sudo apt-get update && sudo apt-get install -y docker-compose-plugin)
+      - name: Validate Docker Compose config
+        run: docker compose config --quiet
+
   license-check:
     name: License Compliance
     runs-on: ubuntu-latest
