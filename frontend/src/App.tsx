@@ -20,6 +20,14 @@ export default function App() {
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
 
+  const connect = () => {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) {
+      setWalletAddress(addr);
+      fetchTokenBalance(addr).then(setTokenBalance).catch(() => setTokenBalance(null));
+    }
+  };
+
   useEffect(() => {
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
       .then(([props, decs]) => {
@@ -42,12 +50,12 @@ export default function App() {
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif' }}>
       {/* Header */}
-      <header style={{ background: '#1e293b', color: '#fff', padding: '1rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <header className="app-header">
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.5rem' }}>🌌 CosmosVote</h1>
-          <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>On-chain governance · {ACTIVE_NETWORK}</span>
+          <h1>🌌 CosmosVote</h1>
+          <span className="subtitle">On-chain governance · {ACTIVE_NETWORK}</span>
         </div>
-        <div style={{ textAlign: 'right' }}>
+        <div className="wallet-area">
           {walletAddress ? (
             <div>
               <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
@@ -66,15 +74,15 @@ export default function App() {
         </div>
       </header>
 
-      <main style={{ maxWidth: 900, margin: '0 auto', padding: '2rem 1rem' }}>
+      <main className="app-main">
         {/* Filters */}
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <div className="filters">
           <input
             type="search"
             placeholder="Search proposals..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1, minWidth: 200, padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.875rem' }}
+            style={{ padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: 6, fontSize: '0.875rem' }}
             aria-label="Search proposals"
           />
           <select
@@ -89,7 +97,7 @@ export default function App() {
         </div>
 
         {/* Stats bar */}
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <div className="stats-bar">
           {[
             { label: 'Total', count: proposals.length, color: '#1e293b' },
             { label: 'Active', count: proposals.filter(p => p.state === 'Active').length, color: '#2563eb' },
@@ -105,7 +113,7 @@ export default function App() {
 
         {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
-        
+
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
@@ -118,7 +126,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>

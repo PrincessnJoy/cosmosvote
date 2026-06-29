@@ -27,19 +27,11 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
   const total = p.votes_yes + p.votes_no + p.votes_abstain;
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
-    }}
-      onClick={onClose}
-    >
-      <div
-        style={{ background: '#fff', borderRadius: 12, padding: '2rem', maxWidth: 600, width: '90%', maxHeight: '80vh', overflowY: 'auto' }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-title-row">
           <h2 style={{ margin: 0 }}>Proposal #{String(p.id)}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }} aria-label="Close">×</button>
         </div>
 
         <h3 style={{ margin: '0 0 0.5rem' }}>{p.title}</h3>
@@ -57,13 +49,13 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
             ].map(([k, v]) => (
               <tr key={k} style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td style={{ padding: '0.4rem 0', color: '#888', width: '40%' }}>{k}</td>
-                <td style={{ padding: '0.4rem 0', fontWeight: 500 }}>{v}</td>
+                <td style={{ padding: '0.4rem 0', fontWeight: 500, wordBreak: 'break-all' }}>{v}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+        <div className="vote-tally">
           {[
             { label: '✅ Yes', value: p.votes_yes, color: '#16a34a' },
             { label: '❌ No', value: p.votes_no, color: '#dc2626' },

@@ -41,36 +41,21 @@ export function ProposalCard({ proposal: p, decimals, onClick }: Props) {
 
   return (
     <article
+      className="proposal-card"
       onClick={onClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}
       role="button"
       aria-label={`Proposal #${p.id}: ${p.title}`}
-      style={{
-        border: `1px solid ${color}`,
-        borderRadius: 8,
-        padding: '1rem',
-        cursor: 'pointer',
-        background: '#fff',
-        transition: 'box-shadow 0.15s, border-color 0.15s',
-        outline: 'none',
-      }}
+      style={{ border: `1px solid ${color}` }}
       onMouseEnter={e => (e.currentTarget.style.boxShadow = `0 4px 12px ${color}44`)}
       onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
-      onFocus={e => {
-        e.currentTarget.style.boxShadow = `0 0 0 3px ${color}44`;
-        e.currentTarget.style.borderColor = color;
-      }}
-      onBlur={e => {
-        e.currentTarget.style.boxShadow = 'none';
-        e.currentTarget.style.borderColor = color;
-      }}
+      onFocus={e => (e.currentTarget.style.boxShadow = `0 0 0 3px ${color}44`)}
+      onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <h3 style={{ margin: 0, fontSize: '1rem' }}>#{String(p.id)} — {p.title}</h3>
-        <span style={{ background: color, color: '#fff', borderRadius: 4, padding: '2px 8px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-          {p.state}
-        </span>
+      <div className="card-header">
+        <h3>#{String(p.id)} — {p.title}</h3>
+        <span className="card-badge" style={{ background: color }}>{p.state}</span>
       </div>
 
       <p style={{ margin: '0.5rem 0', color: '#555', fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -81,12 +66,14 @@ export function ProposalCard({ proposal: p, decimals, onClick }: Props) {
         Ends {formatDate(p.end_time)} · Quorum {formatTokenAmount(p.quorum, decimals)}
       </div>
 
-      {/* Quorum progress bar */}
       <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6 }}>
         <div style={{ background: color, width: `${pct}%`, height: '100%', borderRadius: 4, transition: 'width 0.3s' }} />
       </div>
-      <div style={{ fontSize: '0.7rem', color: '#888', marginTop: 2 }}>
-        {pct}% of quorum · ✅ {formatTokenAmount(p.votes_yes, decimals)} · ❌ {formatTokenAmount(p.votes_no, decimals)} · ⬜ {formatTokenAmount(p.votes_abstain, decimals)}
+      <div className="card-vote-row">
+        <span>{pct}% of quorum</span>
+        <span>✅ {formatTokenAmount(p.votes_yes, decimals)}</span>
+        <span>❌ {formatTokenAmount(p.votes_no, decimals)}</span>
+        <span>⬜ {formatTokenAmount(p.votes_abstain, decimals)}</span>
       </div>
     </article>
   );
