@@ -7,6 +7,7 @@ import { ProposalDetail } from './components/ProposalDetail';
 import { useToast } from './components/ToastContext';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount, maskAddress } from './utils';
+import { useTheme } from './useTheme';
 import './responsive.css';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
@@ -21,6 +22,7 @@ const ADMIN_ADDRESS = import.meta.env.VITE_ADMIN_ADDRESS ?? null;
 
 export default function App() {
   const { walletAddress, walletName, tokenBalance, showModal, openModal, disconnect } = useWallet();
+  const { theme, setTheme } = useTheme();
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
