@@ -4,7 +4,8 @@ import { fetchTokenBalance } from './api';
 interface WalletContextType {
   walletAddress: string | null;
   tokenBalance: bigint | null;
-  connect: () => void;
+  connecting: boolean;
+  connect: () => Promise<void>;
   disconnect: () => void;
 }
 
@@ -13,6 +14,7 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
+  const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
     if (!walletAddress) {
@@ -24,9 +26,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       .catch(() => setTokenBalance(null));
   }, [walletAddress]);
 
-  const connect = () => {
+  const connect = async () => {
     const addr = prompt('Enter your Stellar address (G...):');
-    if (addr?.startsWith('G')) setWalletAddress(addr);
+    if (!addr?.startsWith('G')) return;
+    setConnecting(true);
+    try {
+      const balance = await fetchTokenBalance(addr);
+      setWalletAddress(addr);
+      setTokenBalance(balance);
+    } catch {
+      setTokenBalance(null);
+      setWalletAddress(addr);
+    } finally {
+      setConnecting(false);
+    }
   };
 
   const disconnect = () => {
@@ -34,7 +47,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <WalletContext.Provider value={{ walletAddress, tokenBalance, connect, disconnect }}>
+    <WalletContext.Provider value={{ walletAddress, tokenBalance, connecting, connect, disconnect }}>
       {children}
     </WalletContext.Provider>
   );

@@ -2,6 +2,7 @@ import type { Proposal } from '../types';
 import { fetchHasVoted, fetchVoteRecord } from '../api';
 import { useEffect, useState } from 'react';
 import { formatTokenAmount } from '../utils';
+import { Spinner } from './Spinner';
 
 interface Props {
   proposal: Proposal;
@@ -17,11 +18,20 @@ function formatDate(ts: bigint): string {
 export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }: Props) {
   const [hasVoted, setHasVoted] = useState<boolean | null>(null);
   const [voteRecord, setVoteRecord] = useState<{ vote: string; weight: bigint } | null>(null);
+  const [loadingVote, setLoadingVote] = useState(false);
 
   useEffect(() => {
     if (!walletAddress) return;
-    fetchHasVoted(Number(p.id), walletAddress).then(setHasVoted);
-    fetchVoteRecord(Number(p.id), walletAddress).then(setVoteRecord);
+    setLoadingVote(true);
+    Promise.all([
+      fetchHasVoted(Number(p.id), walletAddress),
+      fetchVoteRecord(Number(p.id), walletAddress),
+    ])
+      .then(([voted, record]) => {
+        setHasVoted(voted);
+        setVoteRecord(record);
+      })
+      .finally(() => setLoadingVote(false));
   }, [p.id, walletAddress]);
 
   const total = p.votes_yes + p.votes_no + p.votes_abstain;
@@ -77,9 +87,10 @@ export function ProposalDetail({ proposal: p, decimals, walletAddress, onClose }
         </div>
 
         {walletAddress && (
-          <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem' }}>
-            {hasVoted === null ? 'Checking vote status...' :
-              hasVoted && voteRecord
+          <div style={{ padding: '0.75rem', background: '#f0f9ff', borderRadius: 8, fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {loadingVote
+              ? <><Spinner size="0.9em" color="#3b82f6" /> Checking vote status…</>
+              : hasVoted && voteRecord
                 ? `You voted ${voteRecord.vote} with weight ${formatTokenAmount(voteRecord.weight, decimals)}`
                 : 'You have not voted on this proposal'}
           </div>
