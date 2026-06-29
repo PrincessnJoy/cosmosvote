@@ -4,6 +4,7 @@ import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals, checkRpcReach
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
+import { Pagination } from './components/Pagination';
 import { useToast } from './components/ToastContext';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount, maskAddress } from './utils';
@@ -30,6 +31,10 @@ export default function App() {
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
   const triggerRef = useRef<HTMLElement>(null);
+  // Pagination state — page is reset to 1 whenever the filter or search changes
+  const [page, setPage] = useState(1);
+  // Preserve scroll position when opening/closing proposal detail views
+  const scrollPositionRef = useRef<number>(0);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
@@ -101,6 +106,22 @@ export default function App() {
       return matchState && matchSearch;
     });
   }, [proposals, search, stateFilter]);
+
+  // Reset to page 1 whenever search or filter changes so the user always
+  // starts at the beginning of the new result set.
+  useEffect(() => {
+    setPage(1);
+  }, [search, stateFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+  // Clamp current page if filtered results shrink (e.g. after a search)
+  const safePage = Math.min(page, totalPages);
+
+  const pagedProposals = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, safePage]);
 
   const handleProposalCreated = (id: number) => {
     setShowNewForm(false);
@@ -221,9 +242,11 @@ export default function App() {
           {!loading && !error && filtered.length === 0 && (
             <p style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No proposals found.</p>
           )}
-          {!loading && filtered.map(p => (
+          {!loading && pagedProposals.map(p => (
             <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={(e) => {
               triggerRef.current = e?.currentTarget as HTMLElement ?? null;
+              // Preserve scroll position so it can be restored when detail closes
+              scrollPositionRef.current = window.scrollY;
               setSelected(p);
             }} />
           ))}
@@ -231,12 +254,18 @@ export default function App() {
 
         {!loading && filtered.length > 0 && (
           <Pagination
-            page={page}
+            page={safePage}
             totalPages={totalPages}
             totalCount={filtered.length}
             pageSize={PAGE_SIZE}
-            onPrev={() => setPage(p => Math.max(1, p - 1))}
-            onNext={() => setPage(p => Math.min(totalPages, p + 1))}
+            onPrev={() => {
+              setPage(p => Math.max(1, p - 1));
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onNext={() => {
+              setPage(p => Math.min(totalPages, p + 1));
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
         )}
       </main>
@@ -248,7 +277,11 @@ export default function App() {
           decimals={decimals}
           walletAddress={walletAddress}
           adminAddress={ADMIN_ADDRESS}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            setSelected(null);
+            // Restore scroll position to where it was when the detail was opened
+            window.scrollTo({ top: scrollPositionRef.current });
+          }}
           triggerRef={triggerRef}
         />
       )}
