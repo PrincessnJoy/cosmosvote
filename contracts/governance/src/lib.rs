@@ -23,6 +23,8 @@ mod benchmarks;
 mod event_tests;
 #[cfg(test)]
 mod cross_contract_tests;
+#[cfg(test)]
+mod validation_tests;
 
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
