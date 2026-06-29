@@ -157,3 +157,116 @@ Update `GOVERNANCE_CONTRACT_ID` and `TOKEN_CONTRACT_ID` in your `.env` file afte
 | `AlreadyInitialized` | 1 | `initialize` called on an already-initialized contract | Deploy a fresh contract instead |
 
 For the full error reference see [docs/errors.md](./errors.md).
+
+---
+
+## Deployment Procedure
+
+Use this section when deploying CosmosVote contracts to testnet or mainnet for the first time, or when upgrading to a new version.
+
+### Pre-Flight Checks
+
+Complete every item before running any deployment script.
+
+- [ ] **Environment variables set** — all required vars are exported:
+  ```bash
+  echo "$GOVERNANCE_CONTRACT_ID" "$TOKEN_CONTRACT_ID" "$STELLAR_SECRET_KEY" \
+       "$STELLAR_RPC_URL" "$NETWORK_PASSPHRASE"
+  ```
+  None of the above should be blank.
+- [ ] **Tests passing** — the full test suite is green:
+  ```bash
+  make test
+  ```
+- [ ] **Backup taken** — export the current contract state (proposal IDs, quorum settings, admin address) and save it off-chain before any upgrade:
+  ```bash
+  stellar contract invoke --id "$GOVERNANCE_CONTRACT_ID" \
+    --rpc-url "$STELLAR_RPC_URL" \
+    --network-passphrase "$NETWORK_PASSPHRASE" \
+    -- get_config
+  ```
+- [ ] **Quorum config verified** — confirm `min_quorum_bps` and per-proposal quorums are correct for this network (testnet vs. mainnet values differ).
+- [ ] **Old contract paused** (upgrades only) — pause the existing contract before deploying the replacement (see [Section 1](#1-pause-the-contract)).
+
+### Step-by-Step Deployment
+
+1. **Build WASM binaries:**
+   ```bash
+   make build
+   # Artifacts: target/wasm32-unknown-unknown/release/cosmosvote_governance.wasm
+   #            target/wasm32-unknown-unknown/release/cosmosvote_token.wasm
+   ```
+
+2. **Run the deployment script:**
+   - Testnet / local:
+     ```bash
+     bash scripts/deploy.sh
+     ```
+   - Mainnet:
+     ```bash
+     bash scripts/deploy_mainnet.sh
+     ```
+   Both scripts print the new `CONTRACT_ID` values on success.
+
+3. **Record the new contract IDs** returned by the script and update `.env`:
+   ```bash
+   GOVERNANCE_CONTRACT_ID=<new-gov-id>
+   TOKEN_CONTRACT_ID=<new-token-id>
+   ```
+
+4. **Initialize the governance contract** (fresh deploy only — skip for upgrades that reuse an existing instance):
+   ```bash
+   stellar contract invoke \
+     --id "$GOVERNANCE_CONTRACT_ID" \
+     --source "$STELLAR_SECRET_KEY" \
+     --rpc-url "$STELLAR_RPC_URL" \
+     --network-passphrase "$NETWORK_PASSPHRASE" \
+     -- initialize \
+     --admin "$(stellar keys address "$STELLAR_SECRET_KEY")" \
+     --voting_token "$TOKEN_CONTRACT_ID" \
+     --min_proposal_balance 0 \
+     --proposal_cooldown 0 \
+     --min_quorum_bps <BPS> \
+     --restrict_admin_vote false
+   ```
+
+5. **Unpause** (upgrades only — if old contract was paused in pre-flight):
+   ```bash
+   # Unpause the NEW contract if it was deployed in paused state
+   # (fresh deploys are unpaused by default)
+   ```
+
+6. **Verify WASM build integrity** using the test script:
+   ```bash
+   bash scripts/test_wasm.sh
+   ```
+
+### Post-Flight Checks
+
+Perform these checks immediately after deployment completes.
+
+- [ ] **Health check** — confirm the contract responds to a read call:
+  ```bash
+  stellar contract invoke \
+    --id "$GOVERNANCE_CONTRACT_ID" \
+    --rpc-url "$STELLAR_RPC_URL" \
+    --network-passphrase "$NETWORK_PASSPHRASE" \
+    -- get_config
+  ```
+  Expected: returns the config struct without error.
+- [ ] **Event emission test** — create a test proposal and verify an `proposal_created` event appears in the Horizon event stream:
+  ```bash
+  stellar events --network testnet \
+    --contract-id "$GOVERNANCE_CONTRACT_ID" \
+    --start-ledger <DEPLOY_LEDGER>
+  ```
+- [ ] **Active proposals still accessible** (upgrades only) — query each known active proposal ID and confirm status is still `Active`:
+  ```bash
+  stellar contract invoke \
+    --id "$GOVERNANCE_CONTRACT_ID" \
+    --rpc-url "$STELLAR_RPC_URL" \
+    --network-passphrase "$NETWORK_PASSPHRASE" \
+    -- get_proposal --proposal_id <ID>
+  ```
+- [ ] **Frontend connected** — update `VITE_GOVERNANCE_CONTRACT_ID` and `VITE_TOKEN_CONTRACT_ID` in `frontend/.env`, restart the dev server, and confirm proposals load.
+- [ ] **Notification service updated** — restart the notification service with the new contract ID so it resumes event polling from the correct ledger.
