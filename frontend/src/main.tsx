@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { WalletProvider } from './WalletContext';
 import { validateConfig } from './config';
 
 const root = document.getElementById('root');
@@ -10,7 +11,9 @@ try {
   validateConfig();
   createRoot(root).render(
     <StrictMode>
-      <App />
+      <WalletProvider>
+        <App />
+      </WalletProvider>
     </StrictMode>
   );
 } catch (error) {

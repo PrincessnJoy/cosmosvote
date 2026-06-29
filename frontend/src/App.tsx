@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { Proposal, ProposalState } from './types';
-import { fetchAllProposals, fetchTokenBalance, fetchTokenDecimals } from './api';
+import { fetchAllProposals, fetchTokenDecimals } from './api';
 import { ProposalCard } from './components/ProposalCard';
 import { ProposalSkeleton } from './components/ProposalSkeleton';
 import { ProposalDetail } from './components/ProposalDetail';
 import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount } from './utils';
+import { useWallet } from './WalletContext';
 
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 
@@ -16,9 +17,9 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState<ProposalState | 'All'>('All');
   const [selected, setSelected] = useState<Proposal | null>(null);
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
   const [decimals, setDecimals] = useState<number>(0);
+
+  const { walletAddress, tokenBalance, isConnecting, walletError, connect, retryConnect } = useWallet();
 
   useEffect(() => {
     Promise.all([fetchAllProposals(), fetchTokenDecimals()])
@@ -56,12 +57,27 @@ export default function App() {
               )}
             </div>
           ) : (
-            <button
-              onClick={connect}
-              style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: 'pointer' }}
-            >
-              Connect Wallet
-            </button>
+            <div>
+              <button
+                onClick={connect}
+                disabled={isConnecting}
+                style={{ background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 6, padding: '0.5rem 1rem', cursor: isConnecting ? 'not-allowed' : 'pointer', opacity: isConnecting ? 0.7 : 1 }}
+              >
+                {isConnecting ? 'Connecting…' : 'Connect Wallet'}
+              </button>
+              {walletError && (
+                <div style={{ marginTop: '0.5rem', maxWidth: 260 }}>
+                  <div role="alert" style={{ fontSize: '0.75rem', color: '#fca5a5', marginBottom: '0.25rem' }}>{walletError}</div>
+                  <button
+                    onClick={retryConnect}
+                    disabled={isConnecting}
+                    style={{ fontSize: '0.75rem', background: 'transparent', color: '#93c5fd', border: '1px solid #93c5fd', borderRadius: 4, padding: '0.2rem 0.5rem', cursor: 'pointer' }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </header>
@@ -105,7 +121,7 @@ export default function App() {
 
         {/* Content */}
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
-        
+
         <div style={{ display: 'grid', gap: '1rem' }}>
           {loading && (
             <>
@@ -118,7 +134,7 @@ export default function App() {
             <p style={{ textAlign: 'center', color: '#888' }}>No proposals found.</p>
           )}
           {!loading && filtered.map(p => (
-            <ProposalCard key={String(p.id)} proposal={p} onClick={() => setSelected(p)} />
+            <ProposalCard key={String(p.id)} proposal={p} decimals={decimals} onClick={() => setSelected(p)} />
           ))}
         </div>
       </main>
