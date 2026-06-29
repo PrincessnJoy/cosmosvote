@@ -492,3 +492,184 @@ fn test_unpause_non_admin_fails() {
     let result = token.try_unpause(&user);
     assert_eq!(result, Err(Ok(ContractError::NotAdmin)));
 }
+
+// ---------------------------------------------------------------------------
+// Issue #303 — Token pause safety: transfer freeze guard
+// ---------------------------------------------------------------------------
+
+/// Pausing the contract must freeze all transfers immediately. Balances must
+/// remain unchanged after a blocked attempt.
+#[test]
+fn test_pause_transfer_freeze_balances_unchanged() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+
+    let admin_balance_before = token.balance(&admin);
+    let user_balance_before = token.balance(&user);
+
+    token.pause(&admin);
+
+    // Transfer attempt must fail
+    let result = token.try_transfer(&admin, &user, &500_000i128);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+
+    // Balances must be exactly as before
+    assert_eq!(token.balance(&admin), admin_balance_before);
+    assert_eq!(token.balance(&user), user_balance_before);
+}
+
+/// `transfer_from` must also be blocked when paused; the allowance is not
+/// consumed and balances are unchanged.
+#[test]
+fn test_pause_transfer_from_freeze_allowance_unchanged() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let spender = Address::generate(&env);
+
+    let expiry = env.ledger().sequence() + 100;
+    token.approve(&admin, &spender, &2_000i128, &expiry);
+    assert_eq!(token.allowance(&admin, &spender), 2_000);
+
+    token.pause(&admin);
+
+    let result = token.try_transfer_from(&spender, &admin, &user, &500i128);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+
+    // Allowance must be unchanged
+    assert_eq!(token.allowance(&admin, &spender), 2_000);
+    // Balances must be unchanged
+    assert_eq!(token.balance(&user), 0);
+}
+
+/// Unpausing must fully restore `transfer` functionality; subsequent transfers
+/// succeed and produce correct balance changes.
+#[test]
+fn test_unpause_restores_transfer_from() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let spender = Address::generate(&env);
+
+    let expiry = env.ledger().sequence() + 100;
+    token.approve(&admin, &spender, &10_000i128, &expiry);
+
+    token.pause(&admin);
+    // Blocked while paused
+    assert!(token.try_transfer_from(&spender, &admin, &user, &1_000i128).is_err());
+
+    token.unpause(&admin);
+    // Succeeds after unpause
+    token.transfer_from(&spender, &admin, &user, &1_000i128);
+    assert_eq!(token.balance(&user), 1_000);
+    assert_eq!(token.allowance(&admin, &spender), 9_000);
+}
+
+/// A contract that is already paused should return an error when paused again
+/// (idempotency guard), or at minimum remain paused.
+#[test]
+fn test_double_pause_remains_paused() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+
+    token.pause(&admin);
+    assert!(token.is_paused());
+
+    // Second pause: either idempotent or error — the contract must still be paused
+    let _ = token.try_pause(&admin);
+    assert!(token.is_paused());
+
+    // Transfers must still be blocked
+    let result = token.try_transfer(&admin, &user, &1_000i128);
+    assert_eq!(result, Err(Ok(ContractError::ContractPaused)));
+}
+
+/// Multiple pause/unpause cycles must work correctly.
+#[test]
+fn test_multiple_pause_unpause_cycles() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+
+    for _ in 0..3 {
+        token.pause(&admin);
+        assert!(token.is_paused());
+        assert!(token.try_transfer(&admin, &user, &1_000i128).is_err());
+
+        token.unpause(&admin);
+        assert!(!token.is_paused());
+        token.transfer(&admin, &user, &1_000i128); // must succeed
+    }
+
+    // After 3 cycles, user has received 3 × 1_000 tokens
+    assert_eq!(token.balance(&user), 3_000);
+}
+
+/// Only the admin may pause — any non-admin address must be rejected.
+#[test]
+fn test_pause_admin_only_enforcement() {
+    let env = Env::default();
+    let (token, _, user) = setup(&env);
+
+    let non_admin_1 = Address::generate(&env);
+    let non_admin_2 = Address::generate(&env);
+
+    for caller in [&user, &non_admin_1, &non_admin_2] {
+        let result = token.try_pause(caller);
+        assert_eq!(result, Err(Ok(ContractError::NotAdmin)), "non-admin {caller:?} must not pause");
+    }
+    // Contract remains unpaused
+    assert!(!token.is_paused());
+}
+
+/// Only the admin may unpause — any non-admin address must be rejected.
+#[test]
+fn test_unpause_admin_only_enforcement() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+
+    token.pause(&admin);
+
+    let non_admin_1 = Address::generate(&env);
+    let non_admin_2 = Address::generate(&env);
+
+    for caller in [&user, &non_admin_1, &non_admin_2] {
+        let result = token.try_unpause(caller);
+        assert_eq!(result, Err(Ok(ContractError::NotAdmin)), "non-admin {caller:?} must not unpause");
+    }
+    // Contract remains paused
+    assert!(token.is_paused());
+}
+
+/// `is_paused` must accurately reflect the contract state before, during, and
+/// after a pause/unpause cycle.
+#[test]
+fn test_is_paused_reflects_state_accurately() {
+    let env = Env::default();
+    let (token, admin, _) = setup(&env);
+
+    assert!(!token.is_paused(), "should not be paused on init");
+
+    token.pause(&admin);
+    assert!(token.is_paused(), "should be paused after pause()");
+
+    token.unpause(&admin);
+    assert!(!token.is_paused(), "should not be paused after unpause()");
+}
+
+/// Pausing must not affect read-only queries like `balance`, `allowance`,
+/// `total_supply`, and `is_paused` itself.
+#[test]
+fn test_pause_does_not_block_read_queries() {
+    let env = Env::default();
+    let (token, admin, user) = setup(&env);
+    let spender = Address::generate(&env);
+
+    let expiry = env.ledger().sequence() + 10;
+    token.approve(&admin, &spender, &500i128, &expiry);
+    token.pause(&admin);
+
+    // Read queries must still work
+    assert_eq!(token.total_supply(), 1_000_000_000);
+    assert_eq!(token.balance(&admin), 1_000_000_000);
+    assert_eq!(token.balance(&user), 0);
+    assert_eq!(token.allowance(&admin, &spender), 500);
+    assert!(token.is_paused());
+}
