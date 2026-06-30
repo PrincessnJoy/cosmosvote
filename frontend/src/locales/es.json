@@ -1,0 +1,56 @@
+{
+  "app_title": "🌌 CosmosVote",
+  "app_subtitle": "Gobernanza en cadena",
+  "connect_wallet": "Conectar billetera",
+  "connect_wallet_prompt": "Introduce tu dirección Stellar (G...):",
+  "disconnect_wallet": "Desconectar",
+
+  "search_placeholder": "Buscar propuestas...",
+  "search_aria_label": "Buscar propuestas",
+  "filter_aria_label": "Filtrar por estado",
+  "filter_all_states": "Todos los estados",
+
+  "stat_total": "Total",
+  "stat_active": "Activas",
+  "stat_passed": "Aprobadas",
+  "stat_executed": "Ejecutadas",
+
+  "loading_proposals": "Cargando propuestas...",
+  "no_proposals": "No se encontraron propuestas.",
+
+  "card_ends": "Termina",
+  "card_quorum": "Quórum",
+  "card_quorum_progress": "% del quórum",
+  "vote_yes": "✅",
+  "vote_no": "❌",
+  "vote_abstain": "⬜",
+
+  "detail_heading": "Propuesta #",
+  "detail_close_aria": "Cerrar",
+  "detail_state": "Estado",
+  "detail_proposer": "Proponente",
+  "detail_start": "Inicio",
+  "detail_end": "Fin",
+  "detail_quorum": "Quórum",
+  "detail_total_votes": "Votos totales",
+  "vote_yes_label": "✅ Sí",
+  "vote_no_label": "❌ No",
+  "vote_abstain_label": "⬜ Abstención",
+  "vote_status_checking": "Verificando estado del voto...",
+  "vote_status_cast": "Votaste",
+  "vote_status_cast_weight": "con peso",
+  "vote_status_not_cast": "No has votado en esta propuesta",
+
+  "nav_proposals": "Propuestas",
+  "nav_dashboard": "Panel",
+  "nav_docs": "Documentación",
+
+  "rpc_warning_prefix": "Advertencia RPC:",
+  "error_prefix": "Error:",
+  "theme_switch_to_dark": "Cambiar a modo oscuro",
+  "theme_switch_to_light": "Cambiar a modo claro",
+  "address_show": "Clic para mostrar dirección completa",
+  "address_hide": "Clic para ocultar dirección completa",
+  "new_proposal": "Nueva propuesta",
+  "cancel": "Cancelar"
+}
