@@ -62,3 +62,25 @@
   height: 0.7rem;
   width: 50%;
 }
+
+/* ── Mobile: ≤480px ── */
+@media (max-width: 480px) {
+  .card {
+    padding: var(--space-3);
+  }
+
+  .titleSkeleton {
+    width: 75%;
+  }
+
+  .descSkeleton {
+    width: 100%;
+  }
+}
+
+/* ── Smallest: ≤320px ── */
+@media (max-width: 320px) {
+  .card {
+    padding: var(--space-2);
+  }
+}
