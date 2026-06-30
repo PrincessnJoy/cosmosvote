@@ -68,6 +68,8 @@ export default function App() {
     fetchAllProposals().then(setProposals).catch(() => {});
   };
 
+  const { walletAddress, tokenBalance, isConnecting, walletError, connect, retryConnect } = useWallet();
+
   useEffect(() => {
     Promise.all([
       fetchAllProposals((loaded, total) => setProgress({ loaded, total })),
