@@ -6,6 +6,9 @@
   align-items: center;
   justify-content: center;
   z-index: 100;
+  /* padding ensures the dialog doesn't touch screen edges on mobile */
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
 .dialog {
@@ -13,19 +16,25 @@
   border-radius: var(--radius-xl);
   padding: var(--space-8);
   max-width: 600px;
-  width: 90%;
-  max-height: 80vh;
+  width: 100%;
+  max-height: 90vh;
   overflow-y: auto;
+  box-sizing: border-box;
+  /* smooth scroll on iOS */
+  -webkit-overflow-scrolling: touch;
 }
 
 .dialogHeader {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   margin-bottom: var(--space-4);
+  gap: var(--space-2);
 }
 
 .dialogTitle {
   margin: 0;
+  word-break: break-word;
 }
 
 .closeBtn {
@@ -33,16 +42,28 @@
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1;
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+}
+
+.closeBtn:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
 }
 
 .proposalTitle {
   margin: 0 0 var(--space-2);
+  word-break: break-word;
 }
 
 .description {
   color: var(--color-text-secondary);
+  word-break: break-word;
 }
 
+/* Metadata table */
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -52,17 +73,23 @@
 .table td {
   padding: 0.4rem 0;
   border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
 }
 
 .table td:first-child {
   color: var(--color-text-muted);
   width: 40%;
+  padding-right: var(--space-2);
+  font-size: var(--font-size-sm);
 }
 
 .table td:last-child {
   font-weight: var(--font-weight-medium);
+  word-break: break-all;
+  font-size: var(--font-size-sm);
 }
 
+/* Vote grid: 3-up on desktop, stacks to 1-up on mobile */
 .voteGrid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -92,4 +119,116 @@
   background: var(--color-blue-info-bg);
   border-radius: var(--radius-lg);
   font-size: var(--font-size-base);
+}
+
+/* Voting controls */
+.voteControls {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+}
+
+.voteBtn {
+  flex: 1;
+  min-width: 80px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: var(--font-size-base);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.voteBtn:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+/* ── Tablet: ≤768px ── */
+@media (max-width: 768px) {
+  .dialog {
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    max-height: 95vh;
+  }
+
+  .table td:first-child {
+    width: 35%;
+  }
+}
+
+/* ── Mobile: ≤480px ── */
+@media (max-width: 480px) {
+  .overlay {
+    padding: 0.5rem;
+    align-items: flex-end;   /* sheet-style from bottom on small phones */
+  }
+
+  .dialog {
+    padding: var(--space-4);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;  /* bottom sheet */
+    max-height: 92vh;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Stack vote boxes vertically on small mobile */
+  .voteGrid {
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .voteBox {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .voteLabel {
+    font-size: var(--font-size-sm);
+  }
+
+  .voteCount {
+    font-size: var(--font-size-md);
+  }
+
+  .voteControls {
+    flex-direction: column;
+  }
+
+  .voteBtn {
+    width: 100%;
+    padding: var(--space-3);
+  }
+
+  .table td {
+    display: block;
+    width: 100%;
+    padding: 0.25rem 0;
+  }
+
+  .table td:first-child {
+    width: 100%;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .table td:last-child {
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-2);
+  }
+}
+
+/* ── Smallest screens: ≤320px ── */
+@media (max-width: 320px) {
+  .dialog {
+    padding: var(--space-3);
+  }
+
+  .dialogTitle {
+    font-size: var(--font-size-md);
+  }
 }
