@@ -1,0 +1,199 @@
+/**
+ * CosmosVote Notification Service – Channel plugins
+ *
+ * Issue #284 – Add support for multiple notification channels
+ *
+ * Each channel implements the NotificationChannel interface:
+ *
+ *   interface NotificationChannel {
+ *     name: string;
+ *     isConfigured(subscriber: Subscriber): boolean;
+ *     send(subscriber: Subscriber, event: GovernanceEvent): Promise<void>;
+ *   }
+ *
+ * Adding a new channel is a matter of:
+ *  1. Implementing NotificationChannel
+ *  2. Adding an instance to CHANNELS below
+ *
+ * Available channels
+ * ──────────────────
+ *  • EmailChannel   – SMTP via nodemailer   (subscriber.email)
+ *  • WebhookChannel – Generic HTTP POST      (subscriber.webhookUrl)
+ *  • SlackChannel   – Slack Incoming Webhook (subscriber.slackWebhookUrl)
+ *  • DiscordChannel – Discord Webhook        (subscriber.discordWebhookUrl)
+ */
+
+import nodemailer from 'nodemailer';
+import axios from 'axios';
+import type { GovernanceEvent, Subscriber } from './types';
+
+// ── Plugin interface ──────────────────────────────────────────────────────────
+
+export interface NotificationChannel {
+  /** Human-readable channel name used in logs and error messages */
+  readonly name: string;
+
+  /** Returns true when the subscriber has provided the credentials/URL for this channel */
+  isConfigured(subscriber: Subscriber): boolean;
+
+  /** Deliver the notification. Throws on failure. */
+  send(subscriber: Subscriber, event: GovernanceEvent): Promise<void>;
+}
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
+function buildTextMessage(event: GovernanceEvent): string {
+  const labels: Record<string, string> = {
+    created: 'A new governance proposal has been created.',
+    voted:   'A vote has been cast on a proposal.',
+    final:   'A proposal has been finalized.',
+    exec:    'A proposal has been executed.',
+    cancel:  'A proposal has been cancelled.',
+  };
+  const base = labels[event.type] ?? `Governance event: ${event.type}`;
+  return event.proposalId
+    ? `${base}\nProposal ID: ${event.proposalId}\nLedger: ${event.ledger}`
+    : `${base}\nLedger: ${event.ledger}`;
+}
+
+function buildSubjectLine(event: GovernanceEvent): string {
+  const verb: Record<string, string> = {
+    created: 'created',
+    voted:   'vote cast on',
+    final:   'finalized',
+    exec:    'executed',
+    cancel:  'cancelled',
+  };
+  const action = verb[event.type] ?? event.type;
+  return event.proposalId
+    ? `CosmosVote: proposal #${event.proposalId} ${action}`
+    : `CosmosVote: proposal ${action}`;
+}
+
+// ── Email channel ─────────────────────────────────────────────────────────────
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT ?? 587),
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+export const EmailChannel: NotificationChannel = {
+  name: 'email',
+
+  isConfigured(subscriber) {
+    return !!subscriber.email;
+  },
+
+  async send(subscriber, event) {
+    if (!subscriber.email) return;
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM,
+      to: subscriber.email,
+      subject: buildSubjectLine(event),
+      text: buildTextMessage(event),
+    });
+  },
+};
+
+// ── Generic webhook channel ───────────────────────────────────────────────────
+
+export const WebhookChannel: NotificationChannel = {
+  name: 'webhook',
+
+  isConfigured(subscriber) {
+    return !!subscriber.webhookUrl;
+  },
+
+  async send(subscriber, event) {
+    if (!subscriber.webhookUrl) return;
+    await axios.post(
+      subscriber.webhookUrl,
+      { event },
+      { timeout: 10_000 },
+    );
+  },
+};
+
+// ── Slack channel ─────────────────────────────────────────────────────────────
+// Uses Slack Incoming Webhooks (https://api.slack.com/messaging/webhooks).
+// Configure with: SLACK_WEBHOOK_URL env var (global), or subscriber.slackWebhookUrl.
+
+export const SlackChannel: NotificationChannel = {
+  name: 'slack',
+
+  isConfigured(subscriber) {
+    return !!(subscriber.slackWebhookUrl ?? process.env.SLACK_WEBHOOK_URL);
+  },
+
+  async send(subscriber, event) {
+    const url = subscriber.slackWebhookUrl ?? process.env.SLACK_WEBHOOK_URL;
+    if (!url) return;
+
+    const text = buildTextMessage(event);
+    const emoji: Record<string, string> = {
+      created: ':memo:',
+      voted:   ':ballot_box:',
+      final:   ':checkered_flag:',
+      exec:    ':rocket:',
+      cancel:  ':x:',
+    };
+    const icon = emoji[event.type] ?? ':bell:';
+
+    await axios.post(
+      url,
+      {
+        text: `${icon} *CosmosVote* — ${buildSubjectLine(event)}`,
+        blocks: [
+          {
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `${icon} *${buildSubjectLine(event)}*\n\`\`\`${text}\`\`\``,
+            },
+          },
+        ],
+      },
+      { timeout: 10_000 },
+    );
+  },
+};
+
+// ── Discord channel ───────────────────────────────────────────────────────────
+// Uses Discord Webhook Execute (https://discord.com/developers/docs/resources/webhook).
+// Configure with: DISCORD_WEBHOOK_URL env var (global), or subscriber.discordWebhookUrl.
+
+export const DiscordChannel: NotificationChannel = {
+  name: 'discord',
+
+  isConfigured(subscriber) {
+    return !!(subscriber.discordWebhookUrl ?? process.env.DISCORD_WEBHOOK_URL);
+  },
+
+  async send(subscriber, event) {
+    const url = subscriber.discordWebhookUrl ?? process.env.DISCORD_WEBHOOK_URL;
+    if (!url) return;
+
+    const text = buildTextMessage(event);
+    await axios.post(
+      url,
+      {
+        content: `**CosmosVote** — ${buildSubjectLine(event)}\n\`\`\`\n${text}\n\`\`\``,
+      },
+      { timeout: 10_000 },
+    );
+  },
+};
+
+// ── Channel registry ──────────────────────────────────────────────────────────
+// Add new channel implementations here to enable them automatically.
+
+export const CHANNELS: NotificationChannel[] = [
+  EmailChannel,
+  WebhookChannel,
+  SlackChannel,
+  DiscordChannel,
+];

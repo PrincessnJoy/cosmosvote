@@ -1,13 +1,17 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { isConnected, requestAccess, getAddress } from '@stellar/freighter-api';
 import { fetchTokenBalance } from './api';
+
+type WalletName = 'Freighter' | 'xBull';
 
 interface WalletContextType {
   walletAddress: string | null;
+  walletName: WalletName | null;
   tokenBalance: bigint | null;
-  isConnecting: boolean;
-  walletError: string | null;
-  connect: () => Promise<void>;
-  retryConnect: () => Promise<void>;
+  showModal: boolean;
+  openModal: () => void;
+  closeModal: () => void;
+  connect: (wallet: WalletName) => Promise<void>;
   disconnect: () => void;
 }
 
@@ -29,58 +33,55 @@ function detectFreighterError(err: unknown): string {
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [walletName, setWalletName] = useState<WalletName | null>(null);
   const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [walletError, setWalletError] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
-  useEffect(() => {
-    if (!walletAddress) { setTokenBalance(null); return; }
-    fetchTokenBalance(walletAddress)
+  const openModal = useCallback(() => setShowModal(true), []);
+  const closeModal = useCallback(() => setShowModal(false), []);
+
+  const connect = useCallback(async (wallet: WalletName) => {
+    let address: string | null = null;
+
+    if (wallet === 'Freighter') {
+      const connected = await isConnected();
+      if (!connected) throw new Error('Freighter extension not found');
+      await requestAccess();
+      const result = await getAddress();
+      if (result.error) throw new Error(result.error.message);
+      address = result.address;
+    } else if (wallet === 'xBull') {
+      // xBull injects window.xBullSDK
+      const sdk = (window as unknown as { xBullSDK?: { connect: () => Promise<{ publicKey: string }> } }).xBullSDK;
+      if (!sdk) throw new Error('xBull extension not found');
+      const result = await sdk.connect();
+      address = result.publicKey;
+    }
+
+    if (!address) return;
+    setWalletAddress(address);
+    setWalletName(wallet);
+    setShowModal(false);
+    fetchTokenBalance(address)
       .then(setTokenBalance)
       .catch(() => setTokenBalance(null));
-  }, [walletAddress]);
-
-  const connect = useCallback(async () => {
-    setIsConnecting(true);
-    setWalletError(null);
-    try {
-      // Freighter API: window.freighter.getPublicKey()
-      // Fallback to prompt for non-Freighter environments
-      let addr: string | null = null;
-      if (typeof window !== 'undefined' && 'freighter' in window) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        addr = await (window as any).freighter.getPublicKey();
-      } else {
-        addr = prompt('Enter your Stellar address (G...):');
-      }
-      if (!addr?.startsWith('G')) throw new Error('Invalid or missing Stellar address.');
-      setWalletAddress(addr);
-    } catch (err) {
-      setWalletError(detectFreighterError(err));
-    } finally {
-      setIsConnecting(false);
-    }
   }, []);
-
-  const retryConnect = useCallback(async () => {
-    setWalletError(null);
-    await connect();
-  }, [connect]);
 
   const disconnect = useCallback(() => {
     setWalletAddress(null);
-    setWalletError(null);
+    setWalletName(null);
+    setTokenBalance(null);
   }, []);
 
   return (
-    <WalletContext.Provider value={{ walletAddress, tokenBalance, isConnecting, walletError, connect, retryConnect, disconnect }}>
+    <WalletContext.Provider value={{ walletAddress, walletName, tokenBalance, showModal, openModal, closeModal, connect, disconnect }}>
       {children}
     </WalletContext.Provider>
   );
 }
 
 export function useWallet() {
-  const context = useContext(WalletContext);
-  if (context === undefined) throw new Error('useWallet must be used within a WalletProvider');
-  return context;
+  const ctx = useContext(WalletContext);
+  if (!ctx) throw new Error('useWallet must be used within a WalletProvider');
+  return ctx;
 }
