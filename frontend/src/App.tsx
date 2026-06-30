@@ -59,6 +59,14 @@ export default function App() {
       : 'Browse and vote on on-chain governance proposals for CosmosVote on Stellar Soroban.'
   );
 
+  const connect = () => {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) {
+      setWalletAddress(addr);
+      fetchTokenBalance(addr).then(setTokenBalance).catch(() => setTokenBalance(null));
+    }
+  };
+
   useEffect(() => {
     if (!walletAddress) { setTokenBalance(null); return; }
     fetchTokenBalance(walletAddress).then(setTokenBalance).catch(() => setTokenBalance(null));
@@ -233,7 +241,7 @@ export default function App() {
         )}
 
         {/* Stats bar */}
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <div className="stats-bar">
           {[
             { label: 'Total', count: proposals.length, color: 'var(--text-primary)' },
             { label: 'Active', count: proposals.filter(p => p.state === 'Active').length, color: '#2563eb' },

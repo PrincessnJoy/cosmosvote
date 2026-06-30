@@ -42,6 +42,7 @@ export function ProposalCard({ proposal: p, decimals, onClick }: Props) {
 
   return (
     <article
+      className="proposal-card"
       onClick={onClick}
       onKeyDown={handleKeyDown}
       tabIndex={0}
@@ -58,14 +59,8 @@ export function ProposalCard({ proposal: p, decimals, onClick }: Props) {
       }}
       onMouseEnter={e => (e.currentTarget.style.boxShadow = `0 4px 12px ${color}44`)}
       onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
-      onFocus={e => {
-        e.currentTarget.style.boxShadow = `0 0 0 3px ${color}44`;
-        e.currentTarget.style.borderColor = color;
-      }}
-      onBlur={e => {
-        e.currentTarget.style.boxShadow = 'none';
-        e.currentTarget.style.borderColor = color;
-      }}
+      onFocus={e => (e.currentTarget.style.boxShadow = `0 0 0 3px ${color}44`)}
+      onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>#{String(p.id)} — {p.title}</h3>
