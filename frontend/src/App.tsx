@@ -79,6 +79,16 @@ export default function App() {
 
   const { walletAddress, tokenBalance, isConnecting, walletError, connect, retryConnect } = useWallet();
 
+  function connect() {
+    const addr = prompt(t('connectWallet') + ':');
+    if (addr?.startsWith('G')) setWalletAddress(addr);
+  }
+
+  useEffect(() => {
+    if (!walletAddress) { setTokenBalance(null); return; }
+    fetchTokenBalance(walletAddress).then(setTokenBalance).catch(() => setTokenBalance(null));
+  }, [walletAddress]);
+
   useEffect(() => {
     Promise.all([
       fetchAllProposals((loaded, total) => setProgress({ loaded, total })),
