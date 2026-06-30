@@ -1,47 +1,37 @@
-import nodemailer from 'nodemailer';
-import axios from 'axios';
-import { GovernanceEvent, Subscriber } from './types';
+/**
+ * CosmosVote Notification Service – Notifier
+ *
+ * Issue #284 – multi-channel support
+ *
+ * Dispatches a governance event to all configured channels for a subscriber.
+ * Channel logic is delegated to the plugin registry in channels.ts.
+ */
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT ?? 587),
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+import type { GovernanceEvent, ChannelResult, Subscriber } from './types';
+import { CHANNELS } from './channels';
 
-function buildMessage(event: GovernanceEvent): string {
-  const labels: Record<string, string> = {
-    created: 'A new governance proposal has been created.',
-    voted:   'A vote has been cast on a proposal.',
-    final:   'A proposal has been finalized.',
-    exec:    'A proposal has been executed.',
-    cancel:  'A proposal has been cancelled.',
-  };
-  const base = labels[event.type] ?? `Governance event: ${event.type}`;
-  return event.proposalId
-    ? `${base}\nProposal ID: ${event.proposalId}\nLedger: ${event.ledger}`
-    : `${base}\nLedger: ${event.ledger}`;
-}
+/**
+ * Deliver a governance event to every channel the subscriber has configured.
+ *
+ * All channels are attempted concurrently. Failures in one channel do NOT
+ * prevent delivery on other channels. Results are returned for logging.
+ */
+export async function notify(
+  subscriber: Subscriber,
+  event: GovernanceEvent,
+): Promise<ChannelResult[]> {
+  const tasks = CHANNELS
+    .filter((ch) => ch.isConfigured(subscriber))
+    .map(async (ch): Promise<ChannelResult> => {
+      try {
+        await ch.send(subscriber, event);
+        return { channel: ch.name, success: true };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[notifier] Channel "${ch.name}" failed for subscriber ${subscriber.id}: ${message}`);
+        return { channel: ch.name, success: false, error: message };
+      }
+    });
 
-async function sendEmail(to: string, event: GovernanceEvent): Promise<void> {
-  const text = buildMessage(event);
-  await transporter.sendMail({
-    from: process.env.EMAIL_FROM,
-    to,
-    subject: `CosmosVote: proposal ${event.type} event`,
-    text,
-  });
-}
-
-async function sendWebhook(url: string, event: GovernanceEvent): Promise<void> {
-  await axios.post(url, { event }, { timeout: 10_000 });
-}
-
-export async function notify(subscriber: Subscriber, event: GovernanceEvent): Promise<void> {
-  const tasks: Promise<void>[] = [];
-  if (subscriber.email) tasks.push(sendEmail(subscriber.email, event));
-  if (subscriber.webhookUrl) tasks.push(sendWebhook(subscriber.webhookUrl, event));
-  await Promise.all(tasks);
+  return Promise.all(tasks);
 }

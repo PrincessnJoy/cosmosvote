@@ -33,11 +33,19 @@ export function saveCursor(cursor: string): void {
 export function addSubscriber(opts: {
   proposalId?: string;
   events: GovernanceEventType[];
+  /** Email channel */
   email?: string;
+  /** Generic HTTP webhook channel */
   webhookUrl?: string;
+  /** Slack Incoming Webhook channel */
+  slackWebhookUrl?: string;
+  /** Discord Webhook channel */
+  discordWebhookUrl?: string;
 }): Subscriber {
-  if (!opts.email && !opts.webhookUrl) {
-    throw new Error('At least one of email or webhookUrl is required.');
+  if (!opts.email && !opts.webhookUrl && !opts.slackWebhookUrl && !opts.discordWebhookUrl) {
+    throw new Error(
+      'At least one notification channel is required: --email, --webhook, --slack, or --discord.',
+    );
   }
   const store = load();
   const subscriber: Subscriber = { id: crypto.randomUUID(), ...opts };

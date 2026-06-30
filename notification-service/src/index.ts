@@ -1,16 +1,38 @@
 /**
- * CosmosVote Notification Service
+ * CosmosVote Notification Service – CLI entry point
+ *
+ * Issue #284 – multi-channel support
  *
  * Usage:
  *   npx ts-node src/index.ts start
+ *
+ *   # Subscribe via email
  *   npx ts-node src/index.ts subscribe --email user@example.com --events created,final
+ *
+ *   # Subscribe via generic webhook
  *   npx ts-node src/index.ts subscribe --webhook https://example.com/hook --events created,voted,final,exec,cancel
+ *
+ *   # Subscribe via Slack Incoming Webhook
+ *   npx ts-node src/index.ts subscribe --slack https://hooks.slack.com/services/... --events created,final
+ *
+ *   # Subscribe via Discord Webhook
+ *   npx ts-node src/index.ts subscribe --discord https://discord.com/api/webhooks/... --events final,exec
+ *
+ *   # Mix channels in a single subscriber
+ *   npx ts-node src/index.ts subscribe \
+ *     --email alert@example.com \
+ *     --slack https://hooks.slack.com/services/... \
+ *     --events created,final
+ *
+ *   # Filter by proposal
  *   npx ts-node src/index.ts subscribe --email user@example.com --proposal-id 42 --events final
+ *
  *   npx ts-node src/index.ts unsubscribe <id>
  *   npx ts-node src/index.ts list
  */
 
 import 'fs'; // ensure Node built-ins are available before dotenv
+
 // Load .env if present
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -49,12 +71,29 @@ async function main(): Promise<void> {
       break;
 
     case 'subscribe': {
-      const email = flag(args, 'email');
-      const webhookUrl = flag(args, 'webhook');
-      const proposalId = flag(args, 'proposal-id');
-      const events = parseEvents(flag(args, 'events'));
+      const email          = flag(args, 'email');
+      const webhookUrl     = flag(args, 'webhook');
+      const slackWebhookUrl   = flag(args, 'slack');
+      const discordWebhookUrl = flag(args, 'discord');
+      const proposalId     = flag(args, 'proposal-id');
+      const events         = parseEvents(flag(args, 'events'));
 
-      const subscriber = addSubscriber({ email, webhookUrl, proposalId, events });
+      if (!email && !webhookUrl && !slackWebhookUrl && !discordWebhookUrl) {
+        console.error(
+          'Error: at least one channel is required.\n' +
+          'Use: --email <addr>, --webhook <url>, --slack <url>, or --discord <url>',
+        );
+        process.exit(1);
+      }
+
+      const subscriber = addSubscriber({
+        email,
+        webhookUrl,
+        slackWebhookUrl,
+        discordWebhookUrl,
+        proposalId,
+        events,
+      });
       console.log('Subscriber added:');
       console.log(JSON.stringify(subscriber, null, 2));
       break;

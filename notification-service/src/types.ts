@@ -13,7 +13,12 @@ export interface GovernanceEvent {
   raw: unknown;
 }
 
-/** A subscriber who wants notifications via email and/or webhook. */
+/**
+ * A subscriber who wants notifications via one or more channels.
+ *
+ * Issue #284 – multi-channel support
+ * Available channels: email, webhook (generic HTTP), slack, discord
+ */
 export interface Subscriber {
   /** Unique identifier */
   id: string;
@@ -21,10 +26,16 @@ export interface Subscriber {
   proposalId?: string;
   /** Which event types to receive */
   events: GovernanceEventType[];
-  /** Email address (optional) */
+
+  // ── Notification channels ──────────────────────────────────────────────
+  /** Email address for SMTP notifications */
   email?: string;
-  /** Webhook URL (optional) */
+  /** Generic HTTP webhook URL (POST with JSON body) */
   webhookUrl?: string;
+  /** Slack incoming webhook URL */
+  slackWebhookUrl?: string;
+  /** Discord incoming webhook URL */
+  discordWebhookUrl?: string;
 }
 
 /** Persisted state: list of subscribers + last processed Horizon paging token. */
@@ -32,4 +43,11 @@ export interface SubscriptionStore {
   subscribers: Subscriber[];
   /** Horizon event paging token — used to resume polling without replaying events. */
   cursor: string;
+}
+
+/** Result of a single channel dispatch. */
+export interface ChannelResult {
+  channel: string;
+  success: boolean;
+  error?: string;
 }
