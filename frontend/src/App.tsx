@@ -9,6 +9,8 @@ import { ACTIVE_NETWORK } from './config';
 import { formatTokenAmount, maskAddress } from './utils';
 import './responsive.css';
 
+type ActiveTab = 'proposals' | 'dashboard' | 'treasury';
+
 const ALL_STATES: ProposalState[] = ['Active', 'Passed', 'Rejected', 'Executed', 'Cancelled'];
 const PAGE_SIZE = 20;
 
@@ -92,6 +94,23 @@ export default function App() {
         .catch(() => setTokenBalance(null));
     }
   };
+
+  function handleConnect() {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) setWalletAddress(addr);
+  }
+
+  function handleDisconnect() {
+    setWalletAddress(null);
+    setTokenBalance(null);
+    setActiveTab('proposals');
+  }
+
+  function handleProposalCreated(_proposalId: number) {
+    setShowCreateProposal(false);
+    // Refresh proposals list
+    fetchAllProposals().then(setProposals).catch(() => {});
+  }
 
   const filtered = useMemo(() => {
     return proposals.filter(p => {
@@ -200,8 +219,6 @@ export default function App() {
               <div style={{ fontSize: '1.25rem', fontWeight: 700, color }}>{count}</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{label}</div>
             </div>
-          ))}
-        </div>
 
         {error && <p style={{ textAlign: 'center', color: '#dc2626', marginBottom: '1rem' }}>Error: {error}</p>}
 
@@ -241,6 +258,8 @@ export default function App() {
         )}
       </main>
       </ErrorBoundary>
+
+      {/* ── Modals ── */}
 
       {selected && (
         <ProposalDetail

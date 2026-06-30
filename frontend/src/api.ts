@@ -8,7 +8,7 @@ import {
   nativeToScVal,
 } from '@stellar/stellar-sdk';
 import { config } from './config';
-import type { Proposal, VoteRecord } from './types';
+import type { Proposal, VoteRecord, TreasuryInfo, ProposalComment } from './types';
 
 const server = new SorobanRpc.Server(config.rpcUrl);
 
