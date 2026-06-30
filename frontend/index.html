@@ -7,9 +7,20 @@
     <meta name="description" content="On-chain governance and voting on Stellar Soroban" />
     <!-- Content Security Policy (CSP): production-ready policy. For dev (Vite HMR), see docs/frontend-csp.md -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; script-src 'self' 'strict-dynamic' https:; connect-src 'self' https:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data:;">
+    <link rel="manifest" href="/manifest.json" />
   </head>
   <body>
+    <div id="install-banner" style="display:none;position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:#1e293b;color:#e2e8f0;padding:.75rem 1.25rem;border-radius:.5rem;font-family:system-ui,sans-serif;font-size:.9rem;z-index:9999;display:none;gap:.75rem;align-items:center;box-shadow:0 4px 16px rgba(0,0,0,.4);">
+      <span>Install CosmosVote for quick access</span>
+      <button id="install-btn" style="background:#4A90E2;color:#fff;border:none;border-radius:.375rem;padding:.4rem .9rem;cursor:pointer;font-size:.875rem;">Install</button>
+      <button id="install-dismiss" style="background:transparent;color:#94a3b8;border:none;cursor:pointer;font-size:1.1rem;line-height:1;" aria-label="Dismiss">✕</button>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+      }
+    </script>
   </body>
 </html>
