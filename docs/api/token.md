@@ -113,6 +113,25 @@ pub fn decimals(env: Env) -> u32
 
 **Returns:** Number of decimal places (SEP-41).
 
+### Frontend Formatting
+
+Use `decimals` to convert raw `i128` balances to human-readable amounts:
+
+```typescript
+// Fetch decimals once and cache
+const decimals = await fetchTokenDecimals(); // calls token.decimals()
+
+// Format a raw balance for display
+function formatBalance(raw: bigint, decimals: number): string {
+  const divisor = 10n ** BigInt(decimals);
+  const whole = raw / divisor;
+  const frac = raw % divisor;
+  return `${whole}.${frac.toString().padStart(decimals, '0')} VOTE`;
+}
+```
+
+The frontend `formatTokenAmount(balance, decimals)` utility in `src/utils.ts` handles this automatically.
+
 ---
 
 ## `admin`

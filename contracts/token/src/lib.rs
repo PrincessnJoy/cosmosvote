@@ -12,7 +12,7 @@ mod types;
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, Address, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use events::TokenEvents;
 use storage::TokenStorage;
@@ -90,6 +90,10 @@ impl TokenContract {
 
     pub fn version(env: Env) -> (u32, u32, u32) {
         TokenStorage::version(&env)
+    }
+
+    pub fn is_paused(env: Env) -> bool {
+        TokenStorage::paused(&env)
     }
 
     /// Return the token name (SEP-41).
@@ -393,24 +397,6 @@ impl TokenContract {
             return Err(ContractError::NotPaused);
         }
 
-        TokenStorage::set_paused(&env, false);
-        TokenEvents::unpaused(&env, &admin);
-        Ok(())
-    }
-
-    /// Pause the contract — blocks all transfers. Admin only.
-    pub fn pause(env: Env, admin: Address) -> Result<(), ContractError> {
-        admin.require_auth();
-        Self::assert_admin(&env, &admin)?;
-        TokenStorage::set_paused(&env, true);
-        TokenEvents::paused(&env, &admin);
-        Ok(())
-    }
-
-    /// Unpause the contract — re-enables transfers. Admin only.
-    pub fn unpause(env: Env, admin: Address) -> Result<(), ContractError> {
-        admin.require_auth();
-        Self::assert_admin(&env, &admin)?;
         TokenStorage::set_paused(&env, false);
         TokenEvents::unpaused(&env, &admin);
         Ok(())
