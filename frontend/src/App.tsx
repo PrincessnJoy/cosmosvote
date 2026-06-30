@@ -23,6 +23,22 @@ async function connect() {
 // Admin address — in production this would come from the contract or environment config
 const ADMIN_ADDRESS = import.meta.env.VITE_ADMIN_ADDRESS ?? null;
 
+function getUrlParams() {
+  const p = new URLSearchParams(window.location.search);
+  return {
+    search: p.get('q') ?? '',
+    stateFilter: (p.get('state') as ProposalState | 'All') ?? 'All',
+  };
+}
+
+function setUrlParams(search: string, stateFilter: string) {
+  const p = new URLSearchParams();
+  if (search) p.set('q', search);
+  if (stateFilter !== 'All') p.set('state', stateFilter);
+  const qs = p.toString();
+  window.history.replaceState(null, '', qs ? `?${qs}` : window.location.pathname);
+}
+
 export default function App() {
   const { walletAddress, walletName, tokenBalance, showModal, openModal, disconnect } = useWallet();
   const { theme, setTheme } = useTheme();
@@ -67,6 +83,16 @@ export default function App() {
       fetchTokenBalance(addr).then(setTokenBalance).catch(() => setTokenBalance(null));
     }
   };
+
+  function connect() {
+    const addr = prompt('Enter your Stellar address (G...):');
+    if (addr?.startsWith('G')) setWalletAddress(addr);
+  }
+
+  useEffect(() => {
+    if (!walletAddress) { setTokenBalance(null); return; }
+    fetchTokenBalance(walletAddress).then(setTokenBalance).catch(() => setTokenBalance(null));
+  }, [walletAddress]);
 
   useEffect(() => {
     if (!walletAddress) { setTokenBalance(null); return; }
