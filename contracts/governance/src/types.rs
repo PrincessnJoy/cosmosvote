@@ -166,3 +166,5 @@ pub struct GovernanceConfig {
     pub restrict_admin_vote: bool,
     pub paused: bool,
 }
+
+// .
