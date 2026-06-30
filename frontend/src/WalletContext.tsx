@@ -15,7 +15,22 @@ export function useWallet() {
   return useWalletStore();
 }
 
-// Provider is now a passthrough — Zustand needs no React context wrapper.
+const WalletContext = createContext<WalletContextType | undefined>(undefined);
+
+function detectFreighterError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (typeof window !== 'undefined' && !('freighter' in window)) {
+    return 'Freighter wallet extension not found. Please install it and refresh.';
+  }
+  if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('denied')) {
+    return 'Connection rejected. Click "Retry" to try again.';
+  }
+  if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('timeout')) {
+    return 'Network error connecting to wallet. Check your connection and retry.';
+  }
+  return `Wallet connection failed: ${msg}`;
+}
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }

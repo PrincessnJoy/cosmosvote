@@ -7,12 +7,14 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     networkPassphrase: 'Test SDF Network ; September 2015',
     governanceContractId: import.meta.env.VITE_GOVERNANCE_CONTRACT_ID ?? '',
     tokenContractId: import.meta.env.VITE_TOKEN_CONTRACT_ID ?? '',
+    treasuryContractId: import.meta.env.VITE_TREASURY_CONTRACT_ID ?? '',
   },
   mainnet: {
     rpcUrl: 'https://soroban-mainnet.stellar.org',
     networkPassphrase: 'Public Global Stellar Network ; September 2015',
     governanceContractId: import.meta.env.VITE_GOVERNANCE_CONTRACT_ID ?? '',
     tokenContractId: import.meta.env.VITE_TOKEN_CONTRACT_ID ?? '',
+    treasuryContractId: import.meta.env.VITE_TREASURY_CONTRACT_ID ?? '',
   },
 };
 

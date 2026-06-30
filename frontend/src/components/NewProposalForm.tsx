@@ -1,4 +1,15 @@
-import { useState } from 'react';
+/**
+ * NewProposalForm — modal form for creating a governance proposal.
+ *
+ * Issue #276: Client-side input validation
+ *  - All fields are validated before the transaction is submitted.
+ *  - Inline errors appear immediately on blur and in real-time after the
+ *    first failed submission attempt so users know what needs fixing.
+ *  - The Submit button is disabled whenever the form is invalid.
+ *  - Character counts are shown for length-bounded text fields.
+ */
+
+import { useState, useCallback } from 'react';
 
 interface Props {
   onClose: () => void;
@@ -14,7 +25,67 @@ interface FormState {
   duration: string;
 }
 
+type FieldName = keyof FormState;
+type FormErrors = Partial<Record<FieldName, string>>;
+
 const INITIAL: FormState = { title: '', description: '', quorum: '', duration: '' };
+
+// ---------------------------------------------------------------------------
+// Validation rules (mirrors the on-chain contract constraints)
+// ---------------------------------------------------------------------------
+
+const TITLE_MAX = 128;
+const DESC_MAX = 1024;
+const DURATION_MIN = 60;
+const DURATION_MAX = 2_592_000;
+
+function validateField(name: FieldName, value: string): string | undefined {
+  switch (name) {
+    case 'title': {
+      if (!value.trim()) return 'Title is required.';
+      if (value.length > TITLE_MAX) return `Title must be ≤ ${TITLE_MAX} characters.`;
+      return undefined;
+    }
+    case 'description': {
+      if (!value.trim()) return 'Description is required.';
+      if (value.length > DESC_MAX) return `Description must be ≤ ${DESC_MAX} characters.`;
+      return undefined;
+    }
+    case 'quorum': {
+      if (!value.trim()) return 'Quorum is required.';
+      const q = Number(value);
+      if (isNaN(q) || !Number.isInteger(q) || q <= 0) return 'Quorum must be a positive whole number.';
+      return undefined;
+    }
+    case 'duration': {
+      if (!value.trim()) return 'Duration is required.';
+      const d = Number(value);
+      if (isNaN(d) || !Number.isInteger(d) || d < DURATION_MIN || d > DURATION_MAX) {
+        return `Duration must be ${DURATION_MIN.toLocaleString()}–${DURATION_MAX.toLocaleString()} seconds.`;
+      }
+      return undefined;
+    }
+    default:
+      return undefined;
+  }
+}
+
+function validateAll(form: FormState): FormErrors {
+  const errs: FormErrors = {};
+  (Object.keys(form) as FieldName[]).forEach(k => {
+    const err = validateField(k, form[k]);
+    if (err) errs[k] = err;
+  });
+  return errs;
+}
+
+function isFormValid(errors: FormErrors): boolean {
+  return Object.keys(errors).length === 0;
+}
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
 
 const overlay: React.CSSProperties = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
@@ -22,49 +93,106 @@ const overlay: React.CSSProperties = {
 };
 
 const dialog: React.CSSProperties = {
-  background: '#fff', borderRadius: 12, padding: '2rem',
-  maxWidth: 560, width: '90%', maxHeight: '90vh', overflowY: 'auto',
+  background: 'var(--bg-card, #fff)',
+  color: 'var(--text-primary, #1e293b)',
+  borderRadius: 12,
+  padding: '2rem',
+  maxWidth: 560,
+  width: '90%',
+  maxHeight: '90vh',
+  overflowY: 'auto',
 };
 
 const fieldStyle: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '1rem',
 };
 
-const inputStyle: React.CSSProperties = {
-  padding: '0.5rem 0.75rem', border: '1px solid #d1d5db',
-  borderRadius: 6, fontSize: '0.875rem', width: '100%', boxSizing: 'border-box',
+function inputStyle(hasError: boolean): React.CSSProperties {
+  return {
+    padding: '0.5rem 0.75rem',
+    border: `1px solid ${hasError ? 'var(--error-color, #dc2626)' : 'var(--input-border, #d1d5db)'}`,
+    borderRadius: 6,
+    fontSize: '0.875rem',
+    width: '100%',
+    boxSizing: 'border-box',
+    background: 'var(--bg-input, #fff)',
+    color: 'var(--text-primary, #1e293b)',
+    outline: hasError ? `2px solid var(--error-color, #dc2626)` : undefined,
+  };
+}
+
+const errorStyle: React.CSSProperties = {
+  color: 'var(--error-color, #dc2626)',
+  fontSize: '0.75rem',
+  marginTop: '0.15rem',
 };
 
-const errorStyle: React.CSSProperties = { color: '#dc2626', fontSize: '0.75rem' };
+const hintStyle: React.CSSProperties = {
+  fontSize: '0.7rem',
+  color: 'var(--text-muted, #888)',
+  marginTop: '0.1rem',
+};
 
-function validate(f: FormState): Partial<Record<keyof FormState, string>> {
-  const errs: Partial<Record<keyof FormState, string>> = {};
-  if (!f.title.trim()) errs.title = 'Title is required.';
-  else if (f.title.length > 128) errs.title = 'Title must be ≤ 128 characters.';
-  if (!f.description.trim()) errs.description = 'Description is required.';
-  else if (f.description.length > 1024) errs.description = 'Description must be ≤ 1024 characters.';
-  const q = Number(f.quorum);
-  if (!f.quorum || isNaN(q) || q <= 0) errs.quorum = 'Quorum must be a positive number.';
-  const d = Number(f.duration);
-  if (!f.duration || isNaN(d) || d < 60 || d > 2592000) errs.duration = 'Duration must be 60–2,592,000 seconds.';
-  return errs;
-}
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export function NewProposalForm({ onClose, onSuccess, onAnnounce, onError }: Props) {
   const [form, setForm] = useState<FormState>(INITIAL);
-  const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
+  const [errors, setErrors] = useState<FormErrors>({});
+  // Track which fields have been "touched" (blurred) so errors don't flash on pristine fields
+  const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>({});
+  // Once the user has attempted to submit we show all errors immediately on change
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-    setForm(f => ({ ...f, [k]: e.target.value }));
+  // Re-validate a single field and update errors state
+  const revalidateField = useCallback((name: FieldName, value: string) => {
+    const err = validateField(name, value);
+    setErrors(prev => {
+      const next = { ...prev };
+      if (err) {
+        next[name] = err;
+      } else {
+        delete next[name];
+      }
+      return next;
+    });
+  }, []);
+
+  const handleChange = (name: FieldName) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const value = e.target.value;
+    setForm(prev => ({ ...prev, [name]: value }));
+    // Show real-time feedback only after touch or first submit attempt
+    if (touched[name] || submitAttempted) {
+      revalidateField(name, value);
+    }
+  };
+
+  const handleBlur = (name: FieldName) => () => {
+    setTouched(prev => ({ ...prev, [name]: true }));
+    revalidateField(name, form[name]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const errs = validate(form);
-    if (Object.keys(errs).length) { setErrors(errs); return; }
-    setErrors({});
+    setSubmitAttempted(true);
+
+    const allErrors = validateAll(form);
+    setErrors(allErrors);
+
+    if (!isFormValid(allErrors)) {
+      // Focus the first invalid field for accessibility
+      const firstKey = (Object.keys(allErrors) as FieldName[])[0];
+      document.getElementById(`np-${firstKey}`)?.focus();
+      return;
+    }
+
     setSubmitting(true);
     onAnnounce?.('Submitting proposal…');
+
     try {
       // Placeholder: replace with real signed transaction when wallet integration is complete
       await new Promise(r => setTimeout(r, 800));
@@ -72,14 +200,19 @@ export function NewProposalForm({ onClose, onSuccess, onAnnounce, onError }: Pro
       onAnnounce?.(`Proposal submitted successfully. Redirecting to proposal #${mockId}.`);
       onSuccess(mockId);
     } catch (err) {
-      const msg = String(err);
+      const msg = err instanceof Error ? err.message : String(err);
       onError?.(msg);
       setSubmitting(false);
     }
   };
 
+  // Whether a field should display its error (touched or submit attempted)
+  const showError = (name: FieldName) => (touched[name] || submitAttempted) && !!errors[name];
+
+  const formHasErrors = !isFormValid(validateAll(form));
+
   return (
-    <div style={overlay} onClick={onClose}>
+    <div style={overlay} onClick={onClose} role="presentation">
       <div
         style={dialog}
         onClick={e => e.stopPropagation()}
@@ -89,85 +222,161 @@ export function NewProposalForm({ onClose, onSuccess, onAnnounce, onError }: Pro
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <h2 id="new-proposal-title" style={{ margin: 0 }}>New Proposal</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer' }} aria-label="Close">×</button>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-primary, #1e293b)' }}
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} noValidate aria-label="New proposal form">
+
+          {/* Title */}
           <div style={fieldStyle}>
-            <label htmlFor="np-title">Title <span aria-hidden="true">*</span></label>
+            <label htmlFor="np-title">
+              Title <span aria-hidden="true" style={{ color: 'var(--error-color, #dc2626)' }}>*</span>
+            </label>
             <input
               id="np-title"
               type="text"
               value={form.title}
-              onChange={set('title')}
-              maxLength={128}
-              style={inputStyle}
-              aria-describedby={errors.title ? 'np-title-err' : undefined}
-              aria-invalid={!!errors.title}
+              onChange={handleChange('title')}
+              onBlur={handleBlur('title')}
+              maxLength={TITLE_MAX}
+              style={inputStyle(showError('title'))}
+              aria-describedby="np-title-hint np-title-err"
+              aria-invalid={showError('title')}
+              aria-required="true"
+              autoComplete="off"
             />
-            <span style={{ fontSize: '0.7rem', color: '#888' }}>{form.title.length}/128</span>
-            {errors.title && <span id="np-title-err" style={errorStyle} role="alert">{errors.title}</span>}
+            <span id="np-title-hint" style={hintStyle}>
+              {form.title.length}/{TITLE_MAX} characters
+            </span>
+            {showError('title') && (
+              <span id="np-title-err" style={errorStyle} role="alert">
+                {errors.title}
+              </span>
+            )}
           </div>
 
+          {/* Description */}
           <div style={fieldStyle}>
-            <label htmlFor="np-desc">Description <span aria-hidden="true">*</span></label>
+            <label htmlFor="np-desc">
+              Description <span aria-hidden="true" style={{ color: 'var(--error-color, #dc2626)' }}>*</span>
+            </label>
             <textarea
               id="np-desc"
               value={form.description}
-              onChange={set('description')}
-              maxLength={1024}
+              onChange={handleChange('description')}
+              onBlur={handleBlur('description')}
+              maxLength={DESC_MAX}
               rows={4}
-              style={{ ...inputStyle, resize: 'vertical' }}
-              aria-describedby={errors.description ? 'np-desc-err' : undefined}
-              aria-invalid={!!errors.description}
+              style={{ ...inputStyle(showError('description')), resize: 'vertical' }}
+              aria-describedby="np-desc-hint np-desc-err"
+              aria-invalid={showError('description')}
+              aria-required="true"
             />
-            <span style={{ fontSize: '0.7rem', color: '#888' }}>{form.description.length}/1024</span>
-            {errors.description && <span id="np-desc-err" style={errorStyle} role="alert">{errors.description}</span>}
+            <span id="np-desc-hint" style={hintStyle}>
+              {form.description.length}/{DESC_MAX} characters
+            </span>
+            {showError('description') && (
+              <span id="np-desc-err" style={errorStyle} role="alert">
+                {errors.description}
+              </span>
+            )}
           </div>
 
+          {/* Quorum */}
           <div style={fieldStyle}>
-            <label htmlFor="np-quorum">Quorum (token units) <span aria-hidden="true">*</span></label>
+            <label htmlFor="np-quorum">
+              Quorum (token units){' '}
+              <span aria-hidden="true" style={{ color: 'var(--error-color, #dc2626)' }}>*</span>
+            </label>
             <input
               id="np-quorum"
               type="number"
               min={1}
+              step={1}
               value={form.quorum}
-              onChange={set('quorum')}
-              style={inputStyle}
-              aria-describedby={errors.quorum ? 'np-quorum-err' : undefined}
-              aria-invalid={!!errors.quorum}
+              onChange={handleChange('quorum')}
+              onBlur={handleBlur('quorum')}
+              style={inputStyle(showError('quorum'))}
+              aria-describedby="np-quorum-hint np-quorum-err"
+              aria-invalid={showError('quorum')}
+              aria-required="true"
             />
-            {errors.quorum && <span id="np-quorum-err" style={errorStyle} role="alert">{errors.quorum}</span>}
+            <span id="np-quorum-hint" style={hintStyle}>
+              Minimum token votes required for the proposal to pass.
+            </span>
+            {showError('quorum') && (
+              <span id="np-quorum-err" style={errorStyle} role="alert">
+                {errors.quorum}
+              </span>
+            )}
           </div>
 
+          {/* Duration */}
           <div style={fieldStyle}>
-            <label htmlFor="np-duration">Duration (seconds, 60–2,592,000) <span aria-hidden="true">*</span></label>
+            <label htmlFor="np-duration">
+              Duration (seconds){' '}
+              <span aria-hidden="true" style={{ color: 'var(--error-color, #dc2626)' }}>*</span>
+            </label>
             <input
               id="np-duration"
               type="number"
-              min={60}
-              max={2592000}
+              min={DURATION_MIN}
+              max={DURATION_MAX}
+              step={1}
               value={form.duration}
-              onChange={set('duration')}
-              style={inputStyle}
-              aria-describedby={errors.duration ? 'np-duration-err' : undefined}
-              aria-invalid={!!errors.duration}
+              onChange={handleChange('duration')}
+              onBlur={handleBlur('duration')}
+              style={inputStyle(showError('duration'))}
+              aria-describedby="np-duration-hint np-duration-err"
+              aria-invalid={showError('duration')}
+              aria-required="true"
             />
-            {errors.duration && <span id="np-duration-err" style={errorStyle} role="alert">{errors.duration}</span>}
+            <span id="np-duration-hint" style={hintStyle}>
+              {DURATION_MIN.toLocaleString()}–{DURATION_MAX.toLocaleString()} s&nbsp;
+              (1 min – 30 days)
+            </span>
+            {showError('duration') && (
+              <span id="np-duration-err" style={errorStyle} role="alert">
+                {errors.duration}
+              </span>
+            )}
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
             <button
               type="button"
               onClick={onClose}
-              style={{ padding: '0.5rem 1rem', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', cursor: 'pointer' }}
+              style={{
+                padding: '0.5rem 1rem',
+                border: '1px solid var(--input-border, #d1d5db)',
+                borderRadius: 6,
+                background: 'var(--bg-card, #fff)',
+                color: 'var(--text-primary, #1e293b)',
+                cursor: 'pointer',
+              }}
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={submitting}
-              style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: 6, background: '#3b82f6', color: '#fff', cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}
+              disabled={submitting || (submitAttempted && formHasErrors)}
+              aria-disabled={submitting || (submitAttempted && formHasErrors)}
+              style={{
+                padding: '0.5rem 1rem',
+                border: 'none',
+                borderRadius: 6,
+                background: '#3b82f6',
+                color: '#fff',
+                cursor: submitting || (submitAttempted && formHasErrors) ? 'not-allowed' : 'pointer',
+                opacity: submitting || (submitAttempted && formHasErrors) ? 0.65 : 1,
+              }}
             >
               {submitting ? 'Submitting…' : 'Submit Proposal'}
             </button>
