@@ -656,4 +656,4 @@ Apache 2.0 — see [LICENSE](./LICENSE).
 
 ---
 
-Built with ❤️ on Stellar
+Built with ❤️ on Stellar.
