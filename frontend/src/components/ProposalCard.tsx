@@ -92,3 +92,4 @@ export function ProposalCard({ proposal: p, decimals, onClick }: Props) {
     </article>
   );
 }
+// .
