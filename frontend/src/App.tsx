@@ -27,6 +27,7 @@ export default function App() {
   const { walletAddress, walletName, tokenBalance, showModal, openModal, disconnect } = useWallet();
   const { theme, setTheme } = useTheme();
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [decimals, setDecimals] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState<{ loaded: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
