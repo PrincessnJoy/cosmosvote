@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "contracts/governance",
     "contracts/token",
+    "contracts/treasury",
 ]
 
 [profile.release]
@@ -17,4 +18,7 @@ lto = true
 
 [profile.release-with-logs]
 inherits = "release"
+
+[dev-dependencies]
+serde_json = "1.0"
 debug-assertions = true
