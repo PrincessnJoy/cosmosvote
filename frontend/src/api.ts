@@ -13,7 +13,7 @@ import type { Proposal, VoteRecord, TreasuryInfo, ProposalComment } from './type
 const server = new SorobanRpc.Server(config.rpcUrl);
 
 // ---------------------------------------------------------------------------
-// Simulation error — distinct from real on-chain failures
+// Simulation error — distinct from real on-chain failures.
 // ---------------------------------------------------------------------------
 
 export class SimulationError extends Error {
