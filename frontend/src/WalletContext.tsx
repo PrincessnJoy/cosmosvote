@@ -1,49 +1,36 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { fetchTokenBalance } from './api';
+/**
+ * WalletContext — backward-compatible shim.
+ *
+ * State is now managed by the Zustand walletStore. This file re-exports
+ * the hook and a no-op provider so that existing component imports continue
+ * to work without modification.
+ *
+ * Issue #379: centralized state management migration with Zustand.
+ */
+import React from 'react';
+import { useWalletStore } from './store/walletStore';
 
-interface WalletContextType {
-  walletAddress: string | null;
-  tokenBalance: bigint | null;
-  connect: () => void;
-  disconnect: () => void;
+// Re-export the hook under the original name for component compatibility
+export function useWallet() {
+  return useWalletStore();
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [tokenBalance, setTokenBalance] = useState<bigint | null>(null);
-
-  useEffect(() => {
-    if (!walletAddress) {
-      setTokenBalance(null);
-      return;
-    }
-    fetchTokenBalance(walletAddress)
-      .then(setTokenBalance)
-      .catch(() => setTokenBalance(null));
-  }, [walletAddress]);
-
-  const connect = () => {
-    const addr = prompt('Enter your Stellar address (G...):');
-    if (addr?.startsWith('G')) setWalletAddress(addr);
-  };
-
-  const disconnect = () => {
-    setWalletAddress(null);
-  };
-
-  return (
-    <WalletContext.Provider value={{ walletAddress, tokenBalance, connect, disconnect }}>
-      {children}
-    </WalletContext.Provider>
-  );
+function detectFreighterError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (typeof window !== 'undefined' && !('freighter' in window)) {
+    return 'Freighter wallet extension not found. Please install it and refresh.';
+  }
+  if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('denied')) {
+    return 'Connection rejected. Click "Retry" to try again.';
+  }
+  if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('timeout')) {
+    return 'Network error connecting to wallet. Check your connection and retry.';
+  }
+  return `Wallet connection failed: ${msg}`;
 }
 
-export function useWallet() {
-  const context = useContext(WalletContext);
-  if (context === undefined) {
-    throw new Error('useWallet must be used within a WalletProvider');
-  }
-  return context;
+export function WalletProvider({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }

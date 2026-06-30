@@ -1,116 +1,137 @@
+/**
+ * CosmosVote – Lightweight i18n framework
+ *
+ * Issue #275 – Add language localization framework and default i18n support
+ *
+ * Design:
+ *  - Locale strings live in src/locales/<lang>.json
+ *  - Active locale is stored in localStorage (key: "cv_locale")
+ *  - I18nContext provides the current translations and a setLocale() function
+ *  - useI18n() hook gives components access to translations
+ *  - Falls back to English for any missing key
+ *
+ * Supported locales:
+ *  - en  English (default)
+ *  - es  Spanish  (placeholder — community contributions welcome)
+ *  - fr  French   (placeholder — community contributions welcome)
+ *
+ * Usage:
+ *   // Wrap the app
+ *   <I18nProvider><App /></I18nProvider>
+ *
+ *   // In any component
+ *   const { t, locale, setLocale } = useI18n();
+ *   <h1>{t('app_title')}</h1>
+ *   <button onClick={() => setLocale('es')}>Español</button>
+ */
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
+
+// ── Supported locale codes ──────────────────────────────────────────────────
 export type Locale = 'en' | 'es' | 'fr';
 
-export const locales: Record<Locale, string> = {
-  en: 'English',
-  es: 'Español',
-  fr: 'Français',
-};
+export const SUPPORTED_LOCALES: { code: Locale; label: string; nativeLabel: string }[] = [
+  { code: 'en', label: 'English',  nativeLabel: 'English'  },
+  { code: 'es', label: 'Spanish',  nativeLabel: 'Español'  },
+  { code: 'fr', label: 'French',   nativeLabel: 'Français' },
+];
 
-type TranslationKey =
-  | 'appTitle'
-  | 'appSubtitle'
-  | 'connectWallet'
-  | 'disconnect'
-  | 'searchPlaceholder'
-  | 'allStates'
-  | 'total'
-  | 'active'
-  | 'passed'
-  | 'rejected'
-  | 'executed'
-  | 'cancelled'
-  | 'noProposals'
-  | 'walletDisconnected'
-  | 'disconnectMsg'
-  | 'reconnect'
-  | 'dismiss'
-  | 'filterByState'
-  | 'checkingVote'
-  | 'notVoted'
-  | 'votedAs';
+// ── Translation map type ────────────────────────────────────────────────────
+// Derived from the English locale — all other locales must satisfy this shape.
+import type enRaw from './locales/en.json';
+export type TranslationMap = typeof enRaw;
+export type TranslationKey = keyof TranslationMap;
 
-type Translations = Record<TranslationKey, string>;
+// ── Static imports of locale JSON files ─────────────────────────────────────
+// Vite resolves these at build time; no network request needed.
+import en from './locales/en.json';
+import es from './locales/es.json';
+import fr from './locales/fr.json';
 
-const translations: Record<Locale, Translations> = {
-  en: {
-    appTitle: '🌌 CosmosVote',
-    appSubtitle: 'On-chain governance',
-    connectWallet: 'Connect Wallet',
-    disconnect: 'Disconnect',
-    searchPlaceholder: 'Search proposals...',
-    allStates: 'All States',
-    total: 'Total',
-    active: 'Active',
-    passed: 'Passed',
-    rejected: 'Rejected',
-    executed: 'Executed',
-    cancelled: 'Cancelled',
-    noProposals: 'No proposals found.',
-    walletDisconnected: '⚠️ Wallet Disconnected',
-    disconnectMsg: 'Your wallet was disconnected. Any pending transaction has been cancelled.',
-    reconnect: 'Reconnect',
-    dismiss: 'Dismiss',
-    filterByState: 'Filter by state',
-    checkingVote: 'Checking vote status...',
-    notVoted: 'You have not voted on this proposal',
-    votedAs: 'You voted {vote} with weight {weight}',
-  },
-  es: {
-    appTitle: '🌌 CosmosVote',
-    appSubtitle: 'Gobernanza en cadena',
-    connectWallet: 'Conectar billetera',
-    disconnect: 'Desconectar',
-    searchPlaceholder: 'Buscar propuestas...',
-    allStates: 'Todos los estados',
-    total: 'Total',
-    active: 'Activo',
-    passed: 'Aprobado',
-    rejected: 'Rechazado',
-    executed: 'Ejecutado',
-    cancelled: 'Cancelado',
-    noProposals: 'No se encontraron propuestas.',
-    walletDisconnected: '⚠️ Billetera desconectada',
-    disconnectMsg: 'Tu billetera fue desconectada. Cualquier transacción pendiente ha sido cancelada.',
-    reconnect: 'Reconectar',
-    dismiss: 'Descartar',
-    filterByState: 'Filtrar por estado',
-    checkingVote: 'Verificando estado del voto...',
-    notVoted: 'No has votado en esta propuesta',
-    votedAs: 'Votaste {vote} con peso {weight}',
-  },
-  fr: {
-    appTitle: '🌌 CosmosVote',
-    appSubtitle: 'Gouvernance on-chain',
-    connectWallet: 'Connecter le portefeuille',
-    disconnect: 'Déconnecter',
-    searchPlaceholder: 'Rechercher des propositions...',
-    allStates: 'Tous les états',
-    total: 'Total',
-    active: 'Actif',
-    passed: 'Adopté',
-    rejected: 'Rejeté',
-    executed: 'Exécuté',
-    cancelled: 'Annulé',
-    noProposals: 'Aucune proposition trouvée.',
-    walletDisconnected: '⚠️ Portefeuille déconnecté',
-    disconnectMsg: 'Votre portefeuille a été déconnecté. Toute transaction en attente a été annulée.',
-    reconnect: 'Reconnecter',
-    dismiss: 'Ignorer',
-    filterByState: 'Filtrer par état',
-    checkingVote: 'Vérification du statut du vote...',
-    notVoted: "Vous n'avez pas voté sur cette proposition",
-    votedAs: 'Vous avez voté {vote} avec un poids de {weight}',
-  },
-};
+const LOCALES: Record<Locale, TranslationMap> = { en, es, fr } as Record<Locale, TranslationMap>;
 
-export function t(locale: Locale, key: TranslationKey, vars?: Record<string, string>): string {
-  let str = translations[locale]?.[key] ?? translations.en[key];
-  if (vars) {
-    for (const [k, v] of Object.entries(vars)) {
-      str = str.replace(`{${k}}`, v);
-    }
+// ── localStorage key ─────────────────────────────────────────────────────────
+const STORAGE_KEY = 'cv_locale';
+
+function readStoredLocale(): Locale {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored && stored in LOCALES) return stored as Locale;
+  } catch {
+    // SSR / private browsing
   }
-  return str;
+  // Auto-detect from browser language preference
+  const browserLang = navigator.language.split('-')[0] as Locale;
+  if (browserLang in LOCALES) return browserLang;
+  return 'en';
 }
 
-export type { TranslationKey };
+// ── Context ──────────────────────────────────────────────────────────────────
+interface I18nContextValue {
+  /** Translate a key, falling back to English if the key is missing */
+  t: (key: TranslationKey) => string;
+  /** Current active locale */
+  locale: Locale;
+  /** Change the active locale */
+  setLocale: (locale: Locale) => void;
+}
+
+const I18nContext = createContext<I18nContextValue | null>(null);
+
+// ── Provider ─────────────────────────────────────────────────────────────────
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [locale, setLocaleState] = useState<Locale>(readStoredLocale);
+
+  const setLocale = useCallback((next: Locale) => {
+    setLocaleState(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, next);
+    } catch {
+      // ignore
+    }
+    // Inform assistive technologies about the language change
+    document.documentElement.lang = next;
+  }, []);
+
+  // Keep <html lang="…"> in sync on initial load
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  const t = useCallback(
+    (key: TranslationKey): string => {
+      const messages = LOCALES[locale];
+      // Explicit key lookup — fall back to English if value is undefined
+      const value = (messages as Record<string, string>)[key] ?? (en as Record<string, string>)[key] ?? key;
+      return value;
+    },
+    [locale],
+  );
+
+  return (
+    <I18nContext.Provider value={{ t, locale, setLocale }}>
+      {children}
+    </I18nContext.Provider>
+  );
+}
+
+// ── Hook ─────────────────────────────────────────────────────────────────────
+export function useI18n(): I18nContextValue {
+  const ctx = useContext(I18nContext);
+  if (!ctx) {
+    throw new Error('useI18n must be used within an <I18nProvider>');
+  }
+  return ctx;
+}
+
+// ── Backwards-compatible singleton export ────────────────────────────────────
+// Components that previously imported `t` directly can still use it (English only).
+// New components should call useI18n() instead.
+export const t: TranslationMap = en;
