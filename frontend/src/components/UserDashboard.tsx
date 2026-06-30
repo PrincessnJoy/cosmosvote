@@ -1,5 +1,6 @@
 import type { Proposal, VoteRecord } from '../types';
 import { formatTokenAmount } from '../utils';
+import { DelegationPanel } from './DelegationPanel';
 
 interface Props {
   walletAddress: string;
@@ -153,6 +154,9 @@ export function UserDashboard({
           🔔 You have {unvoted.length} active proposal{unvoted.length > 1 ? 's' : ''} you haven't voted on yet.
         </div>
       )}
+
+      {/* Delegation management */}
+      <DelegationPanel walletAddress={walletAddress} />
     </aside>
   );
 }

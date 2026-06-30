@@ -170,6 +170,30 @@ export async function fetchTokenDecimals(): Promise<number> {
   return Number(result);
 }
 
+export async function fetchDelegation(owner: string): Promise<string | null> {
+  try {
+    const result = await simulateCall(
+      config.tokenContractId,
+      'get_delegation',
+      nativeToScVal(owner, { type: 'address' })
+    );
+    return result ? String(result) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchDelegatedWeight(voter: string, delegators: string[]): Promise<bigint> {
+  const delegatorVals = delegators.map(d => nativeToScVal(d, { type: 'address' }));
+  const result = await simulateCall(
+    config.tokenContractId,
+    'get_delegated_weight',
+    nativeToScVal(voter, { type: 'address' }),
+    xdr.ScVal.scvVec(delegatorVals)
+  );
+  return BigInt(String(result));
+}
+
 export async function castVote(
   walletAddress: string,
   proposalId: number,
