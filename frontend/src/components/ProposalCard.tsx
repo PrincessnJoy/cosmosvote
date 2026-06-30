@@ -1,18 +1,19 @@
 import type { Proposal, ProposalState } from '../types';
 import { formatTokenAmount } from '../utils';
+import styles from './ProposalCard.module.css';
 
 const STATE_COLORS: Record<ProposalState, string> = {
-  Active: '#2563eb',
-  Passed: '#16a34a',
-  Rejected: '#dc2626',
-  Executed: '#7c3aed',
-  Cancelled: '#6b7280',
+  Active: 'var(--color-state-active)',
+  Passed: 'var(--color-state-passed)',
+  Rejected: 'var(--color-state-rejected)',
+  Executed: 'var(--color-state-executed)',
+  Cancelled: 'var(--color-state-cancelled)',
 };
 
 interface Props {
   proposal: Proposal;
   decimals: number;
-  onClick: () => void;
+  onClick: (e?: React.MouseEvent | React.KeyboardEvent) => void;
 }
 
 function formatDate(ts: bigint): string {
@@ -35,7 +36,7 @@ export function ProposalCard({ proposal: p, decimals, onClick }: Props) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      onClick();
+      onClick(e);
     }
   };
 
@@ -47,34 +48,43 @@ export function ProposalCard({ proposal: p, decimals, onClick }: Props) {
       tabIndex={0}
       role="button"
       aria-label={`Proposal #${p.id}: ${p.title}`}
-      style={{ border: `1px solid ${color}` }}
+      style={{
+        border: `1px solid ${color}`,
+        borderRadius: 8,
+        padding: '1rem',
+        cursor: 'pointer',
+        background: 'var(--bg-card)',
+        transition: 'box-shadow 0.15s, border-color 0.15s',
+        outline: 'none',
+      }}
       onMouseEnter={e => (e.currentTarget.style.boxShadow = `0 4px 12px ${color}44`)}
       onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
       onFocus={e => (e.currentTarget.style.boxShadow = `0 0 0 3px ${color}44`)}
       onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
     >
-      <div className="card-header">
-        <h3>#{String(p.id)} — {p.title}</h3>
-        <span className="card-badge" style={{ background: color }}>{p.state}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <h3 style={{ margin: 0, fontSize: '1rem', color: 'var(--text-primary)' }}>#{String(p.id)} — {p.title}</h3>
+        <span style={{ background: color, color: '#fff', borderRadius: 4, padding: '2px 8px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+          {p.state}
+        </span>
       </div>
 
-      <p style={{ margin: '0.5rem 0', color: '#555', fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <p style={{ margin: '0.5rem 0', color: 'var(--text-secondary)', fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {p.description}
       </p>
 
-      <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '0.5rem' }}>
+      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
         Ends {formatDate(p.end_time)} · Quorum {formatTokenAmount(p.quorum, decimals)}
       </div>
 
-      <div style={{ background: '#e5e7eb', borderRadius: 4, height: 6 }}>
+      {/* Quorum progress bar */}
+      <div style={{ background: 'var(--border-color)', borderRadius: 4, height: 6 }}>
         <div style={{ background: color, width: `${pct}%`, height: '100%', borderRadius: 4, transition: 'width 0.3s' }} />
       </div>
-      <div className="card-vote-row">
-        <span>{pct}% of quorum</span>
-        <span>✅ {formatTokenAmount(p.votes_yes, decimals)}</span>
-        <span>❌ {formatTokenAmount(p.votes_no, decimals)}</span>
-        <span>⬜ {formatTokenAmount(p.votes_abstain, decimals)}</span>
+      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
+        {pct}% of quorum · ✅ {formatTokenAmount(p.votes_yes, decimals)} · ❌ {formatTokenAmount(p.votes_no, decimals)} · ⬜ {formatTokenAmount(p.votes_abstain, decimals)}
       </div>
     </article>
   );
 }
+// .
